@@ -1,0 +1,311 @@
+// Prisma schema for Kitchen Appliance Digital Showroom & Inventory Management
+// Phase 1 Foundation
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==============================================================================
+// ENUMS
+// ==============================================================================
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  STAFF
+}
+
+enum AttributeType {
+  SELECT
+  MULTI_SELECT
+  TEXT
+  NUMBER
+  BOOLEAN
+  RANGE
+}
+
+enum VideoType {
+  CLOUDINARY
+  YOUTUBE
+}
+
+enum InventoryMovementType {
+  PURCHASE
+  SALE
+  DAMAGED
+  RETURN
+  ADJUSTMENT
+}
+
+// ==============================================================================
+// 1. ADMIN USER MANAGEMENT
+// ==============================================================================
+
+model AdminUser {
+  id             String    @id @default(cuid())
+  supabaseAuthId String?   @unique
+  email          String    @unique
+  name           String
+  passwordHash   String?
+  role           AdminRole @default(ADMIN)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  inventoryMovements InventoryMovement[]
+
+  @@index([email])
+  @@index([role, isActive])
+  @@map("admin_users")
+}
+
+// ==============================================================================
+// 2. CATEGORY HIERARCHY (Arbitrary Depth Generic Model)
+// ==============================================================================
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?  @db.Text
+  parentId    String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Self-referencing parent/child hierarchy
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children Category[] @relation("CategoryHierarchy")
+
+  // Relations
+  attributes CategoryAttribute[]
+  products   Product[]
+
+  @@index([parentId])
+  @@index([slug])
+  @@index([isActive, sortOrder])
+  @@map("categories")
+}
+
+// ==============================================================================
+// 3. DYNAMIC ATTRIBUTES & PREDEFINED VALUES
+// ==============================================================================
+
+model CategoryAttribute {
+  id           String        @id @default(cuid())
+  categoryId   String
+  name         String
+  slug         String
+  type         AttributeType
+  unit         String?
+  isFilterable Boolean       @default(true)
+  isRequired   Boolean       @default(false)
+  sortOrder    Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // Relations
+  category               Category                @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  predefinedValues       AttributeValue[]
+  productAttributeValues ProductAttributeValue[]
+
+  @@unique([categoryId, slug])
+  @@index([categoryId])
+  @@index([isFilterable])
+  @@map("category_attributes")
+}
+
+model AttributeValue {
+  id          String   @id @default(cuid())
+  attributeId String
+  value       String
+  label       String
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  attribute              CategoryAttribute       @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  productAttributeValues ProductAttributeValue[]
+
+  @@unique([attributeId, value])
+  @@index([attributeId])
+  @@map("attribute_values")
+}
+
+// ==============================================================================
+// 4. BRANDS
+// ==============================================================================
+
+model Brand {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?  @db.Text
+  logoUrl     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  products Product[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@map("brands")
+}
+
+// ==============================================================================
+// 5. PRODUCTS
+// ==============================================================================
+
+model Product {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  sku              String   @unique
+  modelNumber      String?
+  description      String?  @db.Text
+  brandId          String
+  categoryId       String
+  mrp              Decimal  @db.Decimal(12, 2)
+  sellingPrice     Decimal? @db.Decimal(12, 2)
+  privatePriceCode String? // Internal/private shop code (never displayed to customers)
+  warranty         String? // e.g. "2 Years Comprehensive + 5 Years Motor"
+  isFeatured       Boolean  @default(false)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  brand              Brand                   @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  category           Category                @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  attributeValues    ProductAttributeValue[]
+  images             ProductImage[]
+  videos             ProductVideo[]
+  inventory          Inventory?
+  inventoryMovements InventoryMovement[]
+
+  @@index([brandId])
+  @@index([categoryId])
+  @@index([sku])
+  @@index([slug])
+  @@index([isActive, isFeatured])
+  @@index([sellingPrice])
+  @@map("products")
+}
+
+// ==============================================================================
+// 6. PRODUCT ATTRIBUTE VALUES (Hybrid Relational & Indexed Filter Values)
+// ==============================================================================
+
+model ProductAttributeValue {
+  id               String   @id @default(cuid())
+  productId        String
+  attributeId      String
+  attributeValueId String?
+  value            String // Textual value representation (e.g., "3", "Stainless Steel", "Automatic")
+  numericValue     Float? // Used for numeric range filtering and ordering
+  booleanValue     Boolean? // Used for boolean flags
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  product        Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attribute      CategoryAttribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  attributeValue AttributeValue?   @relation(fields: [attributeValueId], references: [id], onDelete: SetNull)
+
+  @@unique([productId, attributeId, value])
+  @@index([productId])
+  @@index([attributeId, value])
+  @@index([attributeId, numericValue])
+  @@index([attributeValueId])
+  @@map("product_attribute_values")
+}
+
+// ==============================================================================
+// 7. PRODUCT MEDIA (Images & Videos)
+// ==============================================================================
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  url       String
+  publicId  String? // Cloudinary / Storage public ID
+  altText   String?
+  sortOrder Int      @default(0)
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, isPrimary])
+  @@index([productId, sortOrder])
+  @@map("product_images")
+}
+
+model ProductVideo {
+  id        String    @id @default(cuid())
+  productId String
+  videoType VideoType
+  url       String // URL or provider ID (e.g., Cloudinary URL or YouTube Video ID)
+  title     String?
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_videos")
+}
+
+// ==============================================================================
+// 8. INVENTORY & AUDIT LOGS
+// ==============================================================================
+
+model Inventory {
+  id                String   @id @default(cuid())
+  productId         String   @unique
+  quantity          Int      @default(0)
+  lowStockThreshold Int      @default(5)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([quantity])
+  @@map("inventories")
+}
+
+model InventoryMovement {
+  id           String                @id @default(cuid())
+  productId    String
+  quantity     Int // Delta quantity (positive for stock increase, negative for deduction)
+  movementType InventoryMovementType
+  note         String?               @db.Text
+  createdById  String?
+  createdAt    DateTime              @default(now())
+
+  // Relations
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdBy AdminUser? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([movementType])
+  @@index([createdAt])
+  @@index([createdById])
+  @@map("inventory_movements")
+}
