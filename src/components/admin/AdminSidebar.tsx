@@ -37,9 +37,10 @@ const navItems = [
   },
   {
     name: "Products",
-    href: "#",
+    href: "/admin/products",
     icon: Package,
-    disabled: true,
+    description: "Showroom Catalogue",
+    active: true,
     badge: "Phase 3",
   },
   {
@@ -47,21 +48,21 @@ const navItems = [
     href: "#",
     icon: Boxes,
     disabled: true,
-    badge: "Phase 3",
+    badge: "Phase 4",
   },
   {
     name: "Media Gallery",
     href: "#",
     icon: ImageIcon,
     disabled: true,
-    badge: "Phase 3",
+    badge: "Phase 5",
   },
   {
     name: "Settings",
     href: "#",
     icon: Settings,
     disabled: true,
-    badge: "Phase 3",
+    badge: "Phase 6",
   },
 ];
 

@@ -1,18 +1,47 @@
 import { z } from "zod";
+import { slugify } from "../lib/slugify";
 
 export const brandSchema = z.object({
-  name: z.string().min(2, "Brand name must be at least 2 characters").max(100),
+  name: z
+    .string()
+    .trim()
+    .min(2, "Brand name must be at least 2 characters")
+    .max(100, "Brand name cannot exceed 100 characters"),
   slug: z
     .string()
-    .min(2, "Slug must be at least 2 characters")
+    .trim()
     .max(120)
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase letters, numbers, and hyphens"),
-  description: z.string().max(1000).optional().nullable(),
-  logoUrl: z.string().url("Invalid logo URL").optional().nullable(),
-  isActive: z.boolean().default(true),
+    .optional()
+    .transform((val, ctx) => {
+      if (!val || val.length === 0) return undefined;
+      const cleaned = slugify(val);
+      if (!cleaned || cleaned.length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Slug must contain at least 2 alphanumeric characters",
+        });
+        return z.NEVER;
+      }
+      return cleaned;
+    }),
+  description: z
+    .string()
+    .trim()
+    .max(1000, "Description cannot exceed 1000 characters")
+    .optional()
+    .nullable()
+    .transform((val) => (val === "" ? null : val)),
+  logoUrl: z
+    .string()
+    .trim()
+    .url("Invalid logo URL")
+    .optional()
+    .nullable()
+    .transform((val) => (val === "" ? null : val)),
+  isActive: z.boolean().optional().default(true),
 });
 
 export const updateBrandSchema = brandSchema.partial();
 
-export type BrandInput = z.infer<typeof brandSchema>;
-export type UpdateBrandInput = z.infer<typeof updateBrandSchema>;
+export type BrandInput = z.input<typeof brandSchema>;
+export type UpdateBrandInput = z.input<typeof updateBrandSchema>;

@@ -550,6 +550,7 @@ export default function AdminCategoriesPage() {
             onEditCategory={(cat) => handleOpenEditCategory(cat)}
             onToggleActive={(cat) => handleToggleCategoryActive(cat)}
             onDeleteCategory={(cat) => handleDeleteCategory(cat)}
+            onAddSpecification={(catId, catName) => handleOpenAddSpec(catId, catName)}
             onReorder={handleReorderCategories}
           />
         </div>

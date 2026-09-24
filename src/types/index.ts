@@ -99,6 +99,121 @@ export interface CategoryDetailView {
   }[];
 }
 
+// Brand simple interface for dropdowns
+export interface BrandOption {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  isActive: boolean;
+}
+
+// Product List Item for Admin Table
+export interface ProductListItem {
+  id: string;
+  name: string;
+  slug: string;
+  sku: string;
+  modelNumber: string | null;
+  description: string | null;
+  brandId: string;
+  categoryId: string;
+  mrp: number;
+  sellingPrice: number | null;
+  discountPercent: number | null;
+  privatePriceCode: string | null; // Price Code in UI
+  warranty: string | null;
+  isFeatured: boolean;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  brand: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  category: {
+    id: string;
+    name: string;
+    slug: string;
+    parentId: string | null;
+  };
+  _count?: {
+    attributeValues: number;
+    images: number;
+    videos: number;
+  };
+}
+
+export interface ProductAttributeValueDetail {
+  id: string;
+  productId: string;
+  attributeId: string;
+  attributeValueId: string | null;
+  value: string;
+  numericValue: number | null;
+  booleanValue: boolean | null;
+  attribute: {
+    id: string;
+    categoryId: string;
+    name: string;
+    slug: string;
+    type: AttributeType;
+    unit: string | null;
+    isRequired: boolean;
+    isFilterable: boolean;
+  };
+  attributeValue: {
+    id: string;
+    value: string;
+    label: string;
+  } | null;
+}
+
+// Product Complete Detail View for Form / View
+export interface ProductAdminDetailView {
+  id: string;
+  name: string;
+  slug: string;
+  sku: string;
+  modelNumber: string | null;
+  description: string | null;
+  brandId: string;
+  categoryId: string;
+  mrp: number;
+  sellingPrice: number | null;
+  discountPercent: number | null;
+  privatePriceCode: string | null;
+  warranty: string | null;
+  isFeatured: boolean;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  brand: BrandOption;
+  category: {
+    id: string;
+    name: string;
+    slug: string;
+    parentId: string | null;
+    breadcrumbs: CategoryBreadcrumb[];
+  };
+  attributeValues: ProductAttributeValueDetail[];
+}
+
+export interface PaginationInfo {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+export interface PaginatedProductsResponse {
+  products: ProductListItem[];
+  pagination: PaginationInfo;
+}
+
 // Helper types for relations and payload
 export type CategoryWithChildren = Prisma.CategoryGetPayload<{
   include: {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { CategoryServiceError } from "./category-service";
 import { AttributeServiceError } from "./attribute-service";
+import { ProductServiceError } from "./product-service";
 
 export function handleApiSuccess<T>(data: T, status: number = 200) {
   return NextResponse.json(
@@ -16,7 +17,11 @@ export function handleApiSuccess<T>(data: T, status: number = 200) {
 export function handleApiError(error: unknown) {
   console.error("API Error:", error);
 
-  if (error instanceof CategoryServiceError || error instanceof AttributeServiceError) {
+  if (
+    error instanceof CategoryServiceError ||
+    error instanceof AttributeServiceError ||
+    error instanceof ProductServiceError
+  ) {
     return NextResponse.json(
       {
         success: false,
@@ -45,7 +50,7 @@ export function handleApiError(error: unknown) {
       return NextResponse.json(
         {
           success: false,
-          error: "A record with this name or identifier already exists.",
+          error: "A record with this name, SKU, or identifier already exists.",
         },
         { status: 409 }
       );
