@@ -111,7 +111,7 @@ export default async function AdminDashboardPage() {
           <span>Quick Actions</span>
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Link
             href="/admin/products"
             className="p-4 rounded-xl bg-background border border-border hover:border-primary/40 transition group space-y-2"
@@ -125,6 +125,22 @@ export default async function AdminDashboardPage() {
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
               Create, edit, view, search, and manage products with dynamic category specifications.
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/inventory"
+            className="p-4 rounded-xl bg-background border border-border hover:border-primary/40 transition group space-y-2"
+          >
+            <div className="flex items-center justify-between">
+              <div className="font-semibold text-sm text-foreground group-hover:text-primary transition flex items-center gap-2">
+                <Boxes className="w-4 h-4 text-primary" />
+                <span>Inventory & Stock</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition" />
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Manage stock levels, record purchases, sales, damaged goods, and low-stock alert thresholds.
             </p>
           </Link>
 

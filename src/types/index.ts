@@ -242,6 +242,109 @@ export type ProductWithDetails = Prisma.ProductGetPayload<{
   };
 }>;
 
+// ==============================================================================
+// INVENTORY & STOCK MANAGEMENT TYPES (Phase 4)
+// ==============================================================================
+
+export type StockStatus = "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK";
+
+export const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
+  IN_STOCK: "In Stock",
+  LOW_STOCK: "Low Stock",
+  OUT_OF_STOCK: "Out of Stock",
+};
+
+export const MOVEMENT_TYPE_LABELS: Record<InventoryMovementType, string> = {
+  PURCHASE: "Purchase (Add Stock)",
+  SALE: "Customer Sale",
+  DAMAGED: "Damaged Stock",
+  RETURN: "Customer Return",
+  ADJUSTMENT: "Manual Adjustment",
+};
+
+export interface InventoryListItem {
+  id: string; // Inventory ID
+  productId: string;
+  productName: string;
+  productSlug: string;
+  sku: string;
+  modelNumber: string | null;
+  mrp: number;
+  sellingPrice: number | null;
+  brand: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  category: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  quantity: number;
+  lowStockThreshold: number;
+  stockStatus: StockStatus;
+  updatedAt: Date;
+  lastMovement: {
+    movementType: InventoryMovementType;
+    quantity: number;
+    createdAt: Date;
+  } | null;
+}
+
+export interface InventoryMovementRecord {
+  id: string;
+  productId: string;
+  quantity: number; // Delta quantity (+ for add, - for deduct)
+  movementType: InventoryMovementType;
+  note: string | null;
+  createdById: string | null;
+  createdByName: string | null;
+  createdAt: Date;
+}
+
+export interface InventoryDetailView {
+  product: {
+    id: string;
+    name: string;
+    slug: string;
+    sku: string;
+    modelNumber: string | null;
+    mrp: number;
+    sellingPrice: number | null;
+    brand: {
+      id: string;
+      name: string;
+    };
+    category: {
+      id: string;
+      name: string;
+    };
+  };
+  inventory: {
+    id: string;
+    quantity: number;
+    lowStockThreshold: number;
+    stockStatus: StockStatus;
+    updatedAt: Date;
+  };
+  movements: InventoryMovementRecord[];
+}
+
+export interface InventoryMetrics {
+  totalProducts: number;
+  inStockCount: number;
+  lowStockCount: number;
+  outOfStockCount: number;
+  totalUnitsInStock: number;
+}
+
+export interface PaginatedInventoryResponse {
+  items: InventoryListItem[];
+  pagination: PaginationInfo;
+  metrics: InventoryMetrics;
+}
+
 export interface HealthCheckResponse {
   status: "ok" | "degraded" | "error";
   timestamp: string;

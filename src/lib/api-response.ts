@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { CategoryServiceError } from "./category-service";
 import { AttributeServiceError } from "./attribute-service";
 import { ProductServiceError } from "./product-service";
+import { InventoryServiceError } from "./inventory-service";
 
 export function handleApiSuccess<T>(data: T, status: number = 200) {
   return NextResponse.json(
@@ -20,7 +21,8 @@ export function handleApiError(error: unknown) {
   if (
     error instanceof CategoryServiceError ||
     error instanceof AttributeServiceError ||
-    error instanceof ProductServiceError
+    error instanceof ProductServiceError ||
+    error instanceof InventoryServiceError
   ) {
     return NextResponse.json(
       {

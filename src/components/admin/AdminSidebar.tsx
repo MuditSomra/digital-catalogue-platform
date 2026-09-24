@@ -45,9 +45,10 @@ const navItems = [
   },
   {
     name: "Inventory",
-    href: "#",
+    href: "/admin/inventory",
     icon: Boxes,
-    disabled: true,
+    description: "Stock & Movements",
+    active: true,
     badge: "Phase 4",
   },
   {

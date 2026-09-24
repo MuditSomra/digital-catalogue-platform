@@ -1,32 +1,66 @@
 import { z } from "zod";
+import { InventoryMovementType } from "@prisma/client";
 
-export const movementTypeSchema = z.enum([
-  "PURCHASE",
-  "SALE",
-  "DAMAGED",
-  "RETURN",
-  "ADJUSTMENT",
-]);
+export const stockMovementInputSchema = z.object({
+  productId: z.string().trim().min(1, "Product ID is required"),
+  movementType: z.nativeEnum(InventoryMovementType, {
+    errorMap: () => ({
+      message: "Please select a valid movement type (Purchase, Sale, Damaged, Return, or Adjustment).",
+    }),
+  }),
+  quantity: z.coerce
+    .number()
+    .int("Quantity must be a whole number")
+    .refine((val) => val !== 0, {
+      message: "Quantity cannot be zero",
+    }),
+  note: z
+    .string()
+    .trim()
+    .max(1000, "Note cannot exceed 1000 characters")
+    .optional()
+    .nullable()
+    .transform((val) => (val === "" ? null : val)),
+}).refine(
+  (data) => {
+    // PURCHASE, SALE, DAMAGED, RETURN must have positive quantity in user input
+    if (
+      (data.movementType === InventoryMovementType.PURCHASE ||
+        data.movementType === InventoryMovementType.SALE ||
+        data.movementType === InventoryMovementType.DAMAGED ||
+        data.movementType === InventoryMovementType.RETURN) &&
+      data.quantity <= 0
+    ) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: "Quantity must be greater than zero for Purchase, Sale, Damaged, and Return operations.",
+    path: ["quantity"],
+  }
+);
 
-export const inventorySchema = z.object({
-  productId: z.string().cuid("Invalid product ID"),
-  quantity: z.number().int().min(0, "Quantity cannot be negative"),
-  lowStockThreshold: z.number().int().min(0, "Threshold cannot be negative").default(5),
+export const updateLowStockThresholdSchema = z.object({
+  productId: z.string().trim().min(1, "Product ID is required"),
+  lowStockThreshold: z.coerce
+    .number()
+    .int("Threshold must be a whole number")
+    .min(0, "Low-stock threshold must be 0 or greater"),
 });
 
-export const inventoryMovementSchema = z.object({
-  productId: z.string().cuid("Invalid product ID"),
-  quantity: z.number().int().refine((val) => val !== 0, "Movement quantity cannot be zero"),
-  movementType: movementTypeSchema,
-  note: z.string().max(1000).optional().nullable(),
-  createdById: z.string().cuid("Invalid admin user ID").optional().nullable(),
+export const inventoryFilterQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+  search: z.string().trim().optional(),
+  categoryId: z.string().trim().optional(),
+  brandId: z.string().trim().optional(),
+  stockStatus: z
+    .enum(["all", "in_stock", "low_stock", "out_of_stock"])
+    .optional()
+    .default("all"),
 });
 
-export const updateInventorySchema = z.object({
-  quantity: z.number().int().min(0).optional(),
-  lowStockThreshold: z.number().int().min(0).optional(),
-});
-
-export type InventoryInput = z.infer<typeof inventorySchema>;
-export type InventoryMovementInput = z.infer<typeof inventoryMovementSchema>;
-export type UpdateInventoryInput = z.infer<typeof updateInventorySchema>;
+export type StockMovementInput = z.infer<typeof stockMovementInputSchema>;
+export type UpdateLowStockThresholdInput = z.infer<typeof updateLowStockThresholdSchema>;
+export type InventoryFilterQuery = z.input<typeof inventoryFilterQuerySchema>;
