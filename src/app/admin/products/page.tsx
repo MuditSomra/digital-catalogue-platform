@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { ProductListTable } from "@/components/admin/products/ProductListTable";
 import { ProductFormModal } from "@/components/admin/products/ProductFormModal";
 import { ProductDeleteModal } from "@/components/admin/products/ProductDeleteModal";
+import { ProductMediaModal } from "@/components/admin/products/ProductMediaModal";
 import { useToast } from "@/components/ui/ToastContext";
 import {
   Package,
@@ -55,6 +56,8 @@ export default function AdminProductsPage() {
   const [productToEdit, setProductToEdit] = useState<ProductAdminDetailView | ProductListItem | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<ProductListItem | null>(null);
+  const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
+  const [productForMedia, setProductForMedia] = useState<ProductListItem | null>(null);
 
   // Fetch Auxiliary Data (Brands & Flat Categories)
   const fetchAuxData = useCallback(async () => {
@@ -163,6 +166,12 @@ export default function AdminProductsPage() {
   const handleOpenDeleteModal = (product: ProductListItem) => {
     setProductToDelete(product);
     setIsDeleteModalOpen(true);
+  };
+
+  // Open Media Management Modal
+  const handleOpenMediaModal = (product: ProductListItem) => {
+    setProductForMedia(product);
+    setIsMediaModalOpen(true);
   };
 
   // Save Product (Create / Update)
@@ -374,6 +383,7 @@ export default function AdminProductsPage() {
         onEditProduct={handleOpenEditModal}
         onDeleteProduct={handleOpenDeleteModal}
         onToggleActive={handleToggleActive}
+        onManageMedia={handleOpenMediaModal}
       />
 
       {/* CREATE / EDIT PRODUCT MODAL */}
@@ -395,6 +405,14 @@ export default function AdminProductsPage() {
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleConfirmDelete}
         product={productToDelete}
+      />
+
+      {/* STANDALONE MEDIA MANAGEMENT MODAL */}
+      <ProductMediaModal
+        isOpen={isMediaModalOpen}
+        onClose={() => setIsMediaModalOpen(false)}
+        product={productForMedia}
+        onMediaChanged={fetchProducts}
       />
     </div>
   );

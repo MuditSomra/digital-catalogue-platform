@@ -225,6 +225,10 @@ export async function getProducts(
         category: {
           select: { id: true, name: true, slug: true, parentId: true },
         },
+        images: {
+          where: { isPrimary: true },
+          take: 1,
+        },
         _count: {
           select: {
             attributeValues: true,
@@ -259,6 +263,9 @@ export async function getProducts(
       updatedAt: p.updatedAt,
       brand: p.brand,
       category: p.category,
+      primaryImage: p.images.length > 0 ? p.images[0] : null,
+      imagesCount: p._count.images,
+      videosCount: p._count.videos,
       _count: p._count,
     };
   });
@@ -305,6 +312,12 @@ export async function getProductById(id: string): Promise<ProductAdminDetailView
           slug: true,
           parentId: true,
         },
+      },
+      images: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      },
+      videos: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
       },
       attributeValues: {
         include: {
@@ -397,6 +410,25 @@ export async function getProductById(id: string): Promise<ProductAdminDetailView
       attribute: av.attribute,
       attributeValue: av.attributeValue,
     })),
+    images: product.images,
+    videos: product.videos.map((v) => {
+      let youtubeVideoId: string | null = null;
+      let thumbnailUrl: string | undefined;
+      if (v.videoType === "YOUTUBE") {
+        const match = v.url.match(
+          /(?:youtube(?:-nocookie)?\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i
+        );
+        youtubeVideoId = match ? match[1] : (v.url.length === 11 ? v.url : null);
+        if (youtubeVideoId) {
+          thumbnailUrl = `https://img.youtube.com/vi/${youtubeVideoId}/hqdefault.jpg`;
+        }
+      }
+      return {
+        ...v,
+        youtubeVideoId,
+        thumbnailUrl,
+      };
+    }),
   };
 }
 

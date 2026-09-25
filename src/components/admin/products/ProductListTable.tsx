@@ -16,6 +16,7 @@ import {
   RotateCcw,
   SlidersHorizontal,
   Tag,
+  Image as ImageIcon,
 } from "lucide-react";
 import type {
   ProductListItem,
@@ -57,6 +58,7 @@ interface ProductListTableProps {
   onEditProduct: (product: ProductListItem) => void;
   onDeleteProduct: (product: ProductListItem) => void;
   onToggleActive: (product: ProductListItem) => void;
+  onManageMedia?: (product: ProductListItem) => void;
 }
 
 export function ProductListTable({
@@ -82,6 +84,7 @@ export function ProductListTable({
   onEditProduct,
   onDeleteProduct,
   onToggleActive,
+  onManageMedia,
 }: ProductListTableProps) {
   const hasActiveFilters = Boolean(
     search.trim() || selectedBrandId || selectedCategoryId || statusFilter !== "all"
@@ -247,18 +250,45 @@ export function ProductListTable({
                       className="hover:bg-muted/20 transition-colors group"
                     >
                       {/* Product Name & Badges */}
-                      <td className="py-3.5 px-4 font-medium text-foreground max-w-[240px]">
-                        <div className="flex items-start gap-2">
-                          <div>
-                            <div className="font-semibold text-foreground text-sm line-clamp-2">
+                      <td className="py-3.5 px-4 font-medium text-foreground max-w-[280px]">
+                        <div className="flex items-center gap-3">
+                          {/* Product Thumbnail */}
+                          <div
+                            onClick={() => onManageMedia && onManageMedia(product)}
+                            className="w-10 h-10 shrink-0 rounded-xl bg-muted/40 border border-border overflow-hidden flex items-center justify-center relative cursor-pointer group/thumb hover:border-primary/50 transition"
+                            title="Click to view/manage media"
+                          >
+                            {product.primaryImage ? (
+                              <img
+                                src={product.primaryImage.url}
+                                alt={product.primaryImage.altText || product.name}
+                                className="w-full h-full object-contain p-1 group-hover/thumb:scale-105 transition"
+                              />
+                            ) : (
+                              <ImageIcon className="w-4 h-4 text-muted-foreground/40" />
+                            )}
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="font-semibold text-foreground text-xs line-clamp-2 leading-snug">
                               {product.name}
                             </div>
-                            {product.isFeatured && (
-                              <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                                <Sparkles className="w-3 h-3" />
-                                Featured
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1.5 mt-1">
+                              {product.isFeatured && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                  <Sparkles className="w-2.5 h-2.5" />
+                                  Featured
+                                </span>
+                              )}
+                              {((product.imagesCount ?? product._count?.images ?? 0) > 0 ||
+                                (product.videosCount ?? product._count?.videos ?? 0) > 0) && (
+                                <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
+                                  📷 {product.imagesCount ?? product._count?.images ?? 0}
+                                  {(product.videosCount ?? product._count?.videos ?? 0) > 0 &&
+                                    ` • 🎥 ${product.videosCount ?? product._count?.videos}`}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -352,6 +382,15 @@ export function ProductListTable({
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
+                          {onManageMedia && (
+                            <button
+                              onClick={() => onManageMedia(product)}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition"
+                              title="Manage Images & Videos"
+                            >
+                              <ImageIcon className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={() => onEditProduct(product)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
@@ -382,15 +421,30 @@ export function ProductListTable({
                 key={product.id}
                 className="p-4 bg-card border border-border rounded-2xl shadow-xs space-y-3"
               >
-                {/* Header: Title & Badges */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-1">
+                {/* Header: Title, Thumbnail & Badges */}
+                <div className="flex items-start gap-3">
+                  <div
+                    onClick={() => onManageMedia && onManageMedia(product)}
+                    className="w-12 h-12 shrink-0 rounded-xl bg-muted/40 border border-border overflow-hidden flex items-center justify-center cursor-pointer"
+                  >
+                    {product.primaryImage ? (
+                      <img
+                        src={product.primaryImage.url}
+                        alt={product.primaryImage.altText || product.name}
+                        className="w-full h-full object-contain p-1"
+                      />
+                    ) : (
+                      <ImageIcon className="w-5 h-5 text-muted-foreground/40" />
+                    )}
+                  </div>
+
+                  <div className="space-y-1 min-w-0 flex-1">
                     <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                       <span>{product.brand?.name}</span>
                       <span>&bull;</span>
                       <span>{product.category.name}</span>
                     </div>
-                    <h4 className="text-sm font-bold text-foreground leading-snug">
+                    <h4 className="text-sm font-bold text-foreground leading-snug line-clamp-2">
                       {product.name}
                     </h4>
                   </div>
@@ -466,6 +520,16 @@ export function ProductListTable({
                   </button>
 
                   <div className="flex items-center gap-2">
+                    {onManageMedia && (
+                      <button
+                        onClick={() => onManageMedia(product)}
+                        className="px-2.5 py-1.5 rounded-lg bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold transition flex items-center gap-1"
+                        title="Manage Media"
+                      >
+                        <ImageIcon className="w-3 h-3 text-primary" />
+                        <span>Media</span>
+                      </button>
+                    )}
                     <button
                       onClick={() => onEditProduct(product)}
                       className="px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition flex items-center gap-1"

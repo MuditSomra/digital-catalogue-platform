@@ -4,6 +4,7 @@ import { CategoryServiceError } from "./category-service";
 import { AttributeServiceError } from "./attribute-service";
 import { ProductServiceError } from "./product-service";
 import { InventoryServiceError } from "./inventory-service";
+import { MediaServiceError } from "./media-service";
 
 export function handleApiSuccess<T>(data: T, status: number = 200) {
   return NextResponse.json(
@@ -22,7 +23,8 @@ export function handleApiError(error: unknown) {
     error instanceof CategoryServiceError ||
     error instanceof AttributeServiceError ||
     error instanceof ProductServiceError ||
-    error instanceof InventoryServiceError
+    error instanceof InventoryServiceError ||
+    error instanceof MediaServiceError
   ) {
     return NextResponse.json(
       {

@@ -13,6 +13,7 @@ import {
   DollarSign,
   ShieldCheck,
   Percent,
+  Image as ImageIcon,
 } from "lucide-react";
 import type {
   BrandOption,
@@ -21,6 +22,7 @@ import type {
   AttributeType,
 } from "@/types";
 import { BrandModal } from "./BrandModal";
+import { ProductMediaManager } from "./ProductMediaManager";
 
 interface FlatCategoryOption {
   id: string;
@@ -93,6 +95,9 @@ export function ProductFormModal({
   const [initialCategoryId, setInitialCategoryId] = useState<string | null>(null);
   const [categoryChangedWarning, setCategoryChangedWarning] = useState(false);
 
+  // Tab State (Details vs Media)
+  const [activeTab, setActiveTab] = useState<"details" | "media">("details");
+
   // Inline Brand Modal
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
 
@@ -105,8 +110,11 @@ export function ProductFormModal({
     if (!isOpen) {
       setError(null);
       setCategoryChangedWarning(false);
+      setActiveTab("details");
       return;
     }
+
+    setActiveTab("details");
 
     if (productToEdit) {
       setName(productToEdit.name || "");
@@ -428,14 +436,68 @@ export function ProductFormModal({
         }
         maxWidth="3xl"
       >
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Error Banner */}
-          {error && (
-            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <div className="leading-relaxed font-medium">{error}</div>
-            </div>
-          )}
+        <div className="space-y-6">
+          {/* Tab Navigation */}
+          <div className="flex items-center gap-1.5 p-1 bg-muted/50 rounded-xl border border-border">
+            <button
+              type="button"
+              onClick={() => setActiveTab("details")}
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 ${
+                activeTab === "details"
+                  ? "bg-card text-foreground shadow-xs border border-border/80"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Details & Specifications</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("media")}
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 ${
+                activeTab === "media"
+                  ? "bg-card text-foreground shadow-xs border border-border/80"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <ImageIcon className="w-3.5 h-3.5" />
+              <span>Product Media (Images & Videos)</span>
+            </button>
+          </div>
+
+          {activeTab === "media" ? (
+            productToEdit && "id" in productToEdit && productToEdit.id ? (
+              <ProductMediaManager
+                productId={productToEdit.id}
+                productName={name || productToEdit.name}
+              />
+            ) : (
+              <div className="p-8 border-2 border-dashed border-border bg-muted/20 rounded-2xl text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto text-primary">
+                  <ImageIcon className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-bold text-foreground">Save Product First</h4>
+                <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                  Please fill in the basic details and click &quot;Create Product&quot; to save this appliance to your database first. You can then immediately upload images and add video clips.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("details")}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition shadow-xs"
+                >
+                  Return to Details & Pricing
+                </button>
+              </div>
+            )
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Error Banner */}
+              {error && (
+                <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed font-medium">{error}</div>
+                </div>
+              )}
 
           {/* Category Change Warning */}
           {categoryChangedWarning && (
@@ -945,7 +1007,9 @@ export function ProductFormModal({
             </button>
           </div>
         </form>
-      </Modal>
+      )}
+    </div>
+  </Modal>
 
       {/* Inline Brand Creation Modal */}
       <BrandModal

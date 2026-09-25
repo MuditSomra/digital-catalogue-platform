@@ -108,6 +108,32 @@ export interface BrandOption {
   isActive: boolean;
 }
 
+// Product Image Item
+export interface ProductImageItem {
+  id: string;
+  productId: string;
+  url: string;
+  publicId: string | null;
+  altText: string | null;
+  sortOrder: number;
+  isPrimary: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Product Video Item
+export interface ProductVideoItem {
+  id: string;
+  productId: string;
+  videoType: VideoType;
+  url: string;
+  title: string | null;
+  sortOrder: number;
+  createdAt: Date;
+  thumbnailUrl?: string;
+  youtubeVideoId?: string | null;
+}
+
 // Product List Item for Admin Table
 export interface ProductListItem {
   id: string;
@@ -138,6 +164,9 @@ export interface ProductListItem {
     slug: string;
     parentId: string | null;
   };
+  primaryImage?: ProductImageItem | null;
+  imagesCount?: number;
+  videosCount?: number;
   _count?: {
     attributeValues: number;
     images: number;
@@ -198,6 +227,8 @@ export interface ProductAdminDetailView {
     breadcrumbs: CategoryBreadcrumb[];
   };
   attributeValues: ProductAttributeValueDetail[];
+  images: ProductImageItem[];
+  videos: ProductVideoItem[];
 }
 
 export interface PaginationInfo {

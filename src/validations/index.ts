@@ -4,3 +4,4 @@ export * from "./category";
 export * from "./attribute";
 export * from "./product";
 export * from "./inventory";
+export * from "./media";
