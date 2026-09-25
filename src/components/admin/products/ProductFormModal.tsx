@@ -20,17 +20,12 @@ import type {
   ProductAdminDetailView,
   ProductListItem,
   AttributeType,
+  CategoryTreeNode,
+  FlatCategoryOption,
 } from "@/types";
 import { BrandModal } from "./BrandModal";
 import { ProductMediaManager } from "./ProductMediaManager";
-
-interface FlatCategoryOption {
-  id: string;
-  name: string;
-  path: string;
-  depth: number;
-  isDisabled: boolean;
-}
+import { CascadingCategorySelect } from "@/components/ui/CascadingCategorySelect";
 
 interface PredefinedValue {
   id: string;
@@ -58,7 +53,7 @@ interface ProductFormModalProps {
   onClose: () => void;
   onSave: (payload: any) => Promise<void>;
   productToEdit?: ProductAdminDetailView | ProductListItem | null;
-  categories: FlatCategoryOption[];
+  categories: CategoryTreeNode[] | FlatCategoryOption[] | any[];
   brands: BrandOption[];
   onBrandCreated: (newBrand: BrandOption) => void;
 }
@@ -252,11 +247,24 @@ export function ProductFormModal({
     };
   }, [mrp, sellingPrice]);
 
+  const [categoryName, setCategoryName] = useState<string>("");
+
   // Find category name for dynamic specifications header
   const selectedCategoryName = useMemo(() => {
-    const found = categories.find((c) => c.id === categoryId);
-    return found ? found.name : "Category";
-  }, [categories, categoryId]);
+    if (categoryName) return categoryName;
+    if (!categoryId) return "Category";
+    function findName(items: any[]): string | null {
+      for (const item of items) {
+        if (item.id === categoryId) return item.name;
+        if (item.children && Array.isArray(item.children)) {
+          const sub = findName(item.children);
+          if (sub) return sub;
+        }
+      }
+      return null;
+    }
+    return findName(categories) || "Category";
+  }, [categories, categoryId, categoryName]);
 
   // Handle Dynamic Attribute Value Changes
   const handleAttributeChange = (attrId: string, val: any) => {
@@ -470,6 +478,8 @@ export function ProductFormModal({
               <ProductMediaManager
                 productId={productToEdit.id}
                 productName={name || productToEdit.name}
+                productSku={sku || ("sku" in productToEdit ? productToEdit.sku : "")}
+                allowProductSelection={false}
               />
             ) : (
               <div className="p-8 border-2 border-dashed border-border bg-muted/20 rounded-2xl text-center space-y-3">
@@ -565,24 +575,26 @@ export function ProductFormModal({
               </div>
 
               {/* Category Hierarchy Selection */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 md:col-span-2">
                 <label className="block text-xs font-semibold text-foreground">
                   Category <span className="text-rose-400">*</span>
                 </label>
-                <select
+                <CascadingCategorySelect
                   value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-                  required
-                >
-                  <option value="" disabled>Select Category...</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id} disabled={cat.isDisabled}>
-                      {"— ".repeat(cat.depth)}
-                      {cat.name} {cat.depth > 0 ? `(${cat.path})` : ""}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(newCatId, node) => {
+                    setCategoryId(newCatId || "");
+                    if (node) {
+                      setCategoryName(node.name);
+                    }
+                  }}
+                  categories={categories}
+                  allowRootSelection={false}
+                  rootLabel="Select Main Category..."
+                  subCategoryPlaceholder="Select Subcategory..."
+                  required={true}
+                  showPathPreview={true}
+                  idPrefix="product-form-cat"
+                />
               </div>
 
               {/* SKU */}

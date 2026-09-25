@@ -190,6 +190,7 @@ export async function getFlatCategoryOptions(excludeCategoryId?: string): Promis
     return {
       id: cat.id,
       name: cat.name,
+      parentId: cat.parentId,
       path: pathParts.join(" > "),
       depth: pathParts.length - 1,
       isDisabled: disabledIds.has(cat.id),

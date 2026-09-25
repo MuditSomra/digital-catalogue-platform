@@ -3,15 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { FolderTree, CheckCircle2, AlertCircle } from "lucide-react";
-import type { CategoryTreeNode } from "@/types";
-
-interface FlatOption {
-  id: string;
-  name: string;
-  path: string;
-  depth: number;
-  isDisabled: boolean;
-}
+import type { CategoryTreeNode, FlatCategoryOption } from "@/types";
+import { CascadingCategorySelect } from "@/components/ui/CascadingCategorySelect";
 
 interface CategoryModalProps {
   isOpen: boolean;
@@ -31,7 +24,8 @@ interface CategoryModalProps {
     isActive: boolean;
   } | null;
   parentCategoryId?: string | null;
-  flatCategories: FlatOption[];
+  flatCategories?: FlatCategoryOption[];
+  categories?: CategoryTreeNode[] | FlatCategoryOption[];
 }
 
 export function CategoryModal({
@@ -41,6 +35,7 @@ export function CategoryModal({
   categoryToEdit,
   parentCategoryId,
   flatCategories,
+  categories,
 }: CategoryModalProps) {
   const isEditing = Boolean(categoryToEdit);
   const [name, setName] = useState("");
@@ -143,24 +138,17 @@ export function CategoryModal({
               Optional (leave as Root for main category)
             </span>
           </label>
-          <select
-            value={parentId || ""}
-            onChange={(e) => setParentId(e.target.value === "" ? null : e.target.value)}
-            className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-          >
-            <option value="">(None - Top Level Root Category)</option>
-            {flatCategories.map((cat) => (
-              <option
-                key={cat.id}
-                value={cat.id}
-                disabled={cat.isDisabled || (isEditing && cat.id === categoryToEdit?.id)}
-              >
-                {"— ".repeat(cat.depth)}
-                {cat.name} {cat.depth > 0 ? `(${cat.path})` : ""}
-                {cat.isDisabled ? " (Cannot select descendant)" : ""}
-              </option>
-            ))}
-          </select>
+          <CascadingCategorySelect
+            value={parentId}
+            onChange={(newParentId) => setParentId(newParentId)}
+            categories={categories || flatCategories}
+            excludeCategoryId={categoryToEdit?.id}
+            allowRootSelection={true}
+            rootLabel="(None - Top Level Root Category)"
+            subCategoryPlaceholder="(No subcategory - Use this category as parent)"
+            showPathPreview={true}
+            idPrefix="cat-modal-parent"
+          />
           <p className="text-[11px] text-muted-foreground">
             Place this category inside an existing category (e.g. place "Gas Stoves" under "Cooking Appliances").
           </p>

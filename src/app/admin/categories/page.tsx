@@ -580,6 +580,7 @@ export default function AdminCategoriesPage() {
         onSave={handleSaveCategory}
         categoryToEdit={categoryToEdit}
         parentCategoryId={parentForNewCategory}
+        categories={tree}
         flatCategories={flatOptions}
       />
 

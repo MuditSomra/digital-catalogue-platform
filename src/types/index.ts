@@ -52,6 +52,15 @@ export interface CategoryBreadcrumb {
   slug: string;
 }
 
+export interface FlatCategoryOption {
+  id: string;
+  name: string;
+  path: string;
+  depth: number;
+  isDisabled: boolean;
+  parentId?: string | null;
+}
+
 export interface CategoryDetailView {
   id: string;
   name: string;

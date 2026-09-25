@@ -22,22 +22,17 @@ import type {
   ProductListItem,
   BrandOption,
   PaginatedProductsResponse,
+  CategoryTreeNode,
+  FlatCategoryOption,
 } from "@/types";
-
-interface FlatCategoryOption {
-  id: string;
-  name: string;
-  path: string;
-  depth: number;
-  isDisabled: boolean;
-}
+import { CascadingCategorySelect } from "@/components/ui/CascadingCategorySelect";
 
 interface ProductListTableProps {
   products: ProductListItem[];
   pagination: PaginatedProductsResponse["pagination"] | null;
   loading: boolean;
   brands: BrandOption[];
-  categories: FlatCategoryOption[];
+  categories: CategoryTreeNode[] | FlatCategoryOption[] | any[];
   // Filters
   search: string;
   onSearchChange: (val: string) => void;
@@ -120,20 +115,18 @@ export function ProductListTable({
         {/* Filter Dropdowns */}
         <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-border/60">
           {/* Category Filter */}
-          <div className="flex-1 min-w-[180px]">
-            <select
+          <div className="flex-1 min-w-[200px]">
+            <CascadingCategorySelect
               value={selectedCategoryId}
-              onChange={(e) => onCategoryChange(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-border rounded-xl text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-            >
-              <option value="">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {"— ".repeat(cat.depth)}
-                  {cat.name} {cat.depth > 0 ? `(${cat.path})` : ""}
-                </option>
-              ))}
-            </select>
+              onChange={(newCatId) => onCategoryChange(newCatId || "")}
+              categories={categories}
+              allowRootSelection={true}
+              rootLabel="All Categories"
+              isFilterMode={true}
+              size="sm"
+              layout="responsive"
+              idPrefix="product-filter-cat"
+            />
           </div>
 
           {/* Brand Filter */}

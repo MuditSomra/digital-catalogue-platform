@@ -19,15 +19,9 @@ import {
   InventoryMetrics,
   PaginatedInventoryResponse,
   InventoryMovementType,
+  CategoryTreeNode,
+  FlatCategoryOption,
 } from "@/types";
-
-interface FlatCategoryOption {
-  id: string;
-  name: string;
-  path: string;
-  depth: number;
-  isDisabled: boolean;
-}
 
 export default function AdminInventoryPage() {
   const { success, error, info } = useToast();
@@ -43,7 +37,7 @@ export default function AdminInventoryPage() {
     totalUnitsInStock: 0,
   });
   const [brands, setBrands] = useState<BrandOption[]>([]);
-  const [categories, setCategories] = useState<FlatCategoryOption[]>([]);
+  const [categories, setCategories] = useState<CategoryTreeNode[] | FlatCategoryOption[]>([]);
 
   // Loading States
   const [loading, setLoading] = useState(true);
@@ -65,12 +59,12 @@ export default function AdminInventoryPage() {
   const [quickOpType, setQuickOpType] = useState<InventoryMovementType>(InventoryMovementType.PURCHASE);
   const [isQuickOpModalOpen, setIsQuickOpModalOpen] = useState(false);
 
-  // Fetch Brands and Flat Categories
+  // Fetch Brands and Categories
   const fetchAuxData = useCallback(async () => {
     try {
       const [brandsRes, catsRes] = await Promise.all([
         fetch("/api/admin/brands"),
-        fetch("/api/admin/categories?format=flat"),
+        fetch("/api/admin/categories"),
       ]);
 
       if (brandsRes.ok) {
@@ -80,7 +74,8 @@ export default function AdminInventoryPage() {
 
       if (catsRes.ok) {
         const json = await catsRes.json();
-        setCategories(json.data || []);
+        const catList = json.data?.tree || json.data?.flat || json.data || [];
+        setCategories(catList);
       }
     } catch (err) {
       console.error("Error loading auxiliary data:", err);

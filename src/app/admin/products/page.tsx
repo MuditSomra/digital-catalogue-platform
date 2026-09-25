@@ -14,21 +14,16 @@ import {
   CheckCircle2,
   Tag,
   Percent,
+  Image as ImageIcon,
 } from "lucide-react";
 import type {
   ProductListItem,
   ProductAdminDetailView,
   BrandOption,
   PaginatedProductsResponse,
+  CategoryTreeNode,
+  FlatCategoryOption,
 } from "@/types";
-
-interface FlatCategoryOption {
-  id: string;
-  name: string;
-  path: string;
-  depth: number;
-  isDisabled: boolean;
-}
 
 export default function AdminProductsPage() {
   const { success, error, info } = useToast();
@@ -37,7 +32,7 @@ export default function AdminProductsPage() {
   const [products, setProducts] = useState<ProductListItem[]>([]);
   const [pagination, setPagination] = useState<PaginatedProductsResponse["pagination"] | null>(null);
   const [brands, setBrands] = useState<BrandOption[]>([]);
-  const [categories, setCategories] = useState<FlatCategoryOption[]>([]);
+  const [categories, setCategories] = useState<CategoryTreeNode[] | FlatCategoryOption[]>([]);
 
   // Loading States
   const [loading, setLoading] = useState(true);
@@ -59,12 +54,12 @@ export default function AdminProductsPage() {
   const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
   const [productForMedia, setProductForMedia] = useState<ProductListItem | null>(null);
 
-  // Fetch Auxiliary Data (Brands & Flat Categories)
+  // Fetch Auxiliary Data (Brands & Categories)
   const fetchAuxData = useCallback(async () => {
     try {
       const [brandsRes, catsRes] = await Promise.all([
         fetch("/api/admin/brands"),
-        fetch("/api/admin/categories?format=flat"),
+        fetch("/api/admin/categories"),
       ]);
 
       if (brandsRes.ok) {
@@ -74,7 +69,8 @@ export default function AdminProductsPage() {
 
       if (catsRes.ok) {
         const catsData = await catsRes.json();
-        setCategories(catsData.data || []);
+        const catList = catsData.data?.tree || catsData.data?.flat || catsData.data || [];
+        setCategories(catList);
       }
     } catch (err) {
       console.error("Error fetching brands or categories:", err);
@@ -277,6 +273,18 @@ export default function AdminProductsPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setProductForMedia(null);
+              setIsMediaModalOpen(true);
+            }}
+            className="px-3.5 py-2.5 rounded-xl border border-border bg-card hover:bg-muted text-foreground text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
+            title="Open Product Photo & Media Hub"
+          >
+            <ImageIcon className="w-4 h-4 text-primary" />
+            <span className="hidden sm:inline">Photo Manager</span>
+          </button>
+
           <button
             onClick={handleRefresh}
             disabled={refreshing}

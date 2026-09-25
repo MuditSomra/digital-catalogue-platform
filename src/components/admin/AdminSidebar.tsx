@@ -53,9 +53,10 @@ const navItems = [
   },
   {
     name: "Media Gallery",
-    href: "#",
+    href: "/admin/media",
     icon: ImageIcon,
-    disabled: true,
+    description: "Product Photos & Videos",
+    active: true,
     badge: "Phase 5",
   },
   {
