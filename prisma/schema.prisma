@@ -53,6 +53,7 @@ model AdminUser {
   email          String    @unique
   name           String
   passwordHash   String?
+  pinHash        String?   // Salted hash for owner PIN
   role           AdminRole @default(ADMIN)
   isActive       Boolean   @default(true)
   createdAt      DateTime  @default(now())
@@ -309,3 +310,19 @@ model InventoryMovement {
   @@index([createdById])
   @@map("inventory_movements")
 }
+
+// ==============================================================================
+// 9. STORE SETTINGS & PIN CONFIGURATION
+// ==============================================================================
+
+model StoreSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+  @@map("store_settings")
+}
+

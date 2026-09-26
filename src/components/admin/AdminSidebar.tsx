@@ -61,9 +61,10 @@ const navItems = [
   },
   {
     name: "Settings",
-    href: "#",
+    href: "/admin/settings",
     icon: Settings,
-    disabled: true,
+    description: "PIN & Security",
+    active: true,
     badge: "Phase 6",
   },
 ];
@@ -76,7 +77,7 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       {/* Mobile Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 lg:hidden"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 lg:hidden"
           onClick={onClose}
           aria-hidden="true"
         />
@@ -119,25 +120,6 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
               (pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href)));
             const Icon = item.icon;
 
-            if (item.disabled) {
-              return (
-                <div
-                  key={item.name}
-                  className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-muted-foreground/50 cursor-not-allowed select-none"
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-4 h-4" />
-                    <span>{item.name}</span>
-                  </div>
-                  {item.badge && (
-                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-muted/60 text-muted-foreground/70 border border-border/50">
-                      {item.badge}
-                    </span>
-                  )}
-                </div>
-              );
-            }
-
             return (
               <Link
                 key={item.name}
@@ -145,8 +127,8 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
                 onClick={onClose}
                 className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition group ${
                   isCurrent
-                    ? "bg-primary/15 text-primary border border-primary/25 font-semibold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    ? "bg-primary/10 text-primary border border-primary/25 font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -160,7 +142,7 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
                   <span
                     className={`text-[10px] font-medium px-2 py-0.5 rounded-md border ${
                       isCurrent
-                        ? "bg-primary/20 text-primary border-primary/30"
+                        ? "bg-primary/15 text-primary border-primary/20"
                         : "bg-muted text-muted-foreground border-border"
                     }`}
                   >
@@ -172,29 +154,37 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           })}
         </div>
 
-        {/* Quick System Helper & Shop Info */}
-        <div className="p-4 border-t border-border bg-muted/20 m-3 rounded-xl">
-          <div className="flex items-center gap-2 text-xs font-medium text-foreground">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
-            <span>Dynamic Catalogue</span>
+        {/* Showroom Mode Switcher */}
+        <div className="p-3 border-t border-border bg-muted/40 m-3 rounded-2xl space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-foreground">Mode Switch</span>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+              Admin Active
+            </span>
           </div>
-          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-            Create categories and custom specifications for your kitchen appliance showroom.
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Switch to the customer showroom view for client demonstrations.
           </p>
+          <Link
+            href="/"
+            className="w-full py-2 px-3 rounded-xl bg-background hover:bg-card border border-border text-foreground hover:text-primary text-xs font-semibold flex items-center justify-center gap-2 transition shadow-xs"
+          >
+            <Store className="w-3.5 h-3.5 text-primary" />
+            <span>Customer Showroom &rarr;</span>
+          </Link>
         </div>
 
         {/* Footer info */}
         <div className="p-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Phase 2 System</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Showroom System</span>
           </div>
           <Link
-            href="/"
+            href="/admin/settings"
             className="text-xs text-primary hover:underline"
-            target="_blank"
           >
-            Overview &rarr;
+            PIN Security
           </Link>
         </div>
       </aside>

@@ -9,9 +9,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Kitchen Appliance Showroom | Phase 1 Foundation",
+  title: "Kitchen Appliance Digital Showroom & Inventory",
   description:
-    "Enterprise-grade foundation for kitchen appliance digital showroom and inventory management system.",
+    "Explore premium kitchen appliances, live showroom demonstrations, dynamic specifications, and real-time inventory.",
 };
 
 export default function RootLayout({
@@ -20,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.variable} font-sans min-h-screen flex flex-col`}>
+    <html lang="en">
+      <body className={`${inter.variable} font-sans min-h-screen flex flex-col bg-background text-foreground`}>
         {children}
       </body>
     </html>

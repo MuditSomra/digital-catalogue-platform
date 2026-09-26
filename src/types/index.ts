@@ -397,3 +397,87 @@ export interface HealthCheckResponse {
   };
   version: string;
 }
+
+// ==============================================================================
+// PHASE 6: CUSTOMER SHOWROOM CATALOGUE & COMPARISON TYPES
+// ==============================================================================
+
+export interface CatalogueProductItem {
+  id: string;
+  name: string;
+  slug: string;
+  sku: string;
+  modelNumber: string | null;
+  description: string | null;
+  brandId: string;
+  categoryId: string;
+  mrp: number;
+  sellingPrice: number | null;
+  discountPercent: number | null;
+  privatePriceCode: string | null;
+  warranty: string | null;
+  isFeatured: boolean;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  brand: {
+    id: string;
+    name: string;
+    slug: string;
+    logoUrl?: string | null;
+  };
+  category: {
+    id: string;
+    name: string;
+    slug: string;
+    parentId: string | null;
+    breadcrumbs?: CategoryBreadcrumb[];
+  };
+  inventory: {
+    quantity: number;
+    lowStockThreshold: number;
+    stockStatus: StockStatus;
+  };
+  primaryImage: ProductImageItem | null;
+  images: ProductImageItem[];
+  videos: ProductVideoItem[];
+  attributeValues: {
+    id: string;
+    attributeId: string;
+    attributeSlug: string;
+    attributeName: string;
+    attributeType: AttributeType;
+    unit: string | null;
+    value: string;
+    numericValue: number | null;
+    booleanValue: boolean | null;
+  }[];
+  similarProducts?: CatalogueProductItem[];
+}
+
+export interface DynamicAttributeFilterDef {
+  id: string;
+  categoryId: string;
+  name: string;
+  slug: string;
+  type: AttributeType;
+  unit: string | null;
+  options: {
+    id: string;
+    value: string;
+    label: string;
+  }[];
+  minNumeric?: number;
+  maxNumeric?: number;
+}
+
+export interface PaginatedCatalogueResponse {
+  products: CatalogueProductItem[];
+  pagination: PaginationInfo;
+  availableFilters: DynamicAttributeFilterDef[];
+  priceRange: {
+    min: number;
+    max: number;
+  };
+}
+

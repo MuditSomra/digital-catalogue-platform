@@ -6,6 +6,15 @@ import { ProductServiceError } from "./product-service";
 import { InventoryServiceError } from "./inventory-service";
 import { MediaServiceError } from "./media-service";
 
+export class ApiError extends Error {
+  statusCode: number;
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.statusCode = statusCode;
+  }
+}
+
 export function handleApiSuccess<T>(data: T, status: number = 200) {
   return NextResponse.json(
     {
@@ -20,6 +29,7 @@ export function handleApiError(error: unknown) {
   console.error("API Error:", error);
 
   if (
+    error instanceof ApiError ||
     error instanceof CategoryServiceError ||
     error instanceof AttributeServiceError ||
     error instanceof ProductServiceError ||

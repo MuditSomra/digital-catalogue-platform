@@ -39,21 +39,24 @@ export function AdminHeader({ onToggleSidebar, title }: AdminHeaderProps) {
 
       {/* Right User & Shop Owner Status */}
       <div className="flex items-center gap-3">
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-xs text-primary font-medium">
+        <Link
+          href="/"
+          className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/15 border border-primary/20 text-xs font-semibold text-primary transition shadow-2xs"
+        >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Shop Owner View</span>
-        </div>
+          <span>Customer Showroom</span>
+        </Link>
 
         <div className="flex items-center gap-2.5 pl-2 border-l border-border/80">
-          <div className="w-8 h-8 rounded-full bg-secondary border border-border flex items-center justify-center text-xs font-bold text-foreground">
-            SA
+          <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+            SO
           </div>
           <div className="hidden md:block text-left">
             <div className="text-xs font-semibold text-foreground leading-tight">
               Store Owner
             </div>
             <div className="text-[10px] text-muted-foreground leading-tight">
-              Super Admin
+              Admin Mode
             </div>
           </div>
         </div>

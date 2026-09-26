@@ -435,3 +435,37 @@ export async function reorderCategories(items: { id: string; sortOrder: number }
     )
   );
 }
+
+/**
+ * Returns an array containing the target category ID and all its descendant subcategory IDs.
+ */
+export async function getCategoryWithDescendantIds(categoryId: string): Promise<string[]> {
+  const allCategories = await prisma.category.findMany({
+    select: { id: true, parentId: true },
+  });
+
+  const childMap = new Map<string, string[]>();
+  for (const cat of allCategories) {
+    if (cat.parentId) {
+      if (!childMap.has(cat.parentId)) {
+        childMap.set(cat.parentId, []);
+      }
+      childMap.get(cat.parentId)!.push(cat.id);
+    }
+  }
+
+  const result: string[] = [categoryId];
+  const queue: string[] = [categoryId];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    const children = childMap.get(currentId) || [];
+    for (const childId of children) {
+      result.push(childId);
+      queue.push(childId);
+    }
+  }
+
+  return result;
+}
+
