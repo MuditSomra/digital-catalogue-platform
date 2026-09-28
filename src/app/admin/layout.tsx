@@ -1,37 +1,16 @@
-"use client";
+import React from "react";
+import { requireAuth } from "@/lib/auth-server";
+import { AdminLayoutShell } from "@/components/admin/AdminLayoutShell";
 
-import React, { useState } from "react";
-import { AdminSidebar } from "@/components/admin/AdminSidebar";
-import { AdminHeader } from "@/components/admin/AdminHeader";
-import { ToastProvider } from "@/components/ui/ToastContext";
+export const dynamic = "force-dynamic";
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Server-side authentication guard for entire /admin tree
+  await requireAuth("/admin");
 
-  return (
-    <ToastProvider>
-      <div className="min-h-screen bg-background text-foreground flex">
-        {/* Sidebar */}
-        <AdminSidebar
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-        />
-
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 lg:pl-72">
-          <AdminHeader
-            onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
-          />
-
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-            {children}
-          </main>
-        </div>
-      </div>
-    </ToastProvider>
-  );
+  return <AdminLayoutShell>{children}</AdminLayoutShell>;
 }

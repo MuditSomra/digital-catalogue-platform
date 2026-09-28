@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Layers,
   LayoutDashboard,
@@ -12,6 +13,7 @@ import {
   ChevronRight,
   Store,
   SlidersHorizontal,
+  LogOut,
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -63,7 +65,7 @@ const navItems = [
     name: "Settings",
     href: "/admin/settings",
     icon: Settings,
-    description: "PIN & Security",
+    description: "Auth, Sessions & Security",
     active: true,
     badge: "Phase 6",
   },
@@ -71,6 +73,21 @@ const navItems = [
 
 export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      setLoggingOut(true);
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.push("/login");
+      router.refresh();
+    } catch {
+      router.push("/login");
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   return (
     <>
@@ -174,18 +191,25 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           </Link>
         </div>
 
-        {/* Footer info */}
+        {/* Footer info & Logout */}
         <div className="p-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Showroom System</span>
-          </div>
           <Link
             href="/admin/settings"
-            className="text-xs text-primary hover:underline"
+            className="text-xs text-muted-foreground hover:text-primary transition"
           >
-            PIN Security
+            Settings & Security
           </Link>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
+            title="Log out of current session"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Log Out</span>
+          </button>
         </div>
       </aside>
     </>

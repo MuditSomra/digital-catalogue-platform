@@ -61,10 +61,59 @@ model AdminUser {
 
   // Relations
   inventoryMovements InventoryMovement[]
+  sessions           Session[]
+  trustedDevices     TrustedDevice[]
 
   @@index([email])
   @@index([role, isActive])
   @@map("admin_users")
+}
+
+// ==============================================================================
+// 1.1 SESSION & DEVICE MANAGEMENT
+// ==============================================================================
+
+model Session {
+  id               String         @id @default(cuid())
+  sessionTokenHash String         @unique
+  adminUserId      String
+  adminUser        AdminUser      @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  isTrustedDevice  Boolean        @default(false)
+  trustedDeviceId  String?
+  trustedDevice    TrustedDevice? @relation(fields: [trustedDeviceId], references: [id], onDelete: SetNull)
+  deviceLabel      String?
+  userAgent        String?
+  ipAddress        String?
+  lastActiveAt     DateTime       @default(now())
+  expiresAt        DateTime
+  isRevoked        Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([adminUserId])
+  @@index([sessionTokenHash])
+  @@index([expiresAt])
+  @@index([isRevoked])
+  @@map("sessions")
+}
+
+model TrustedDevice {
+  id              String    @id @default(cuid())
+  adminUserId     String
+  adminUser       AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  deviceTokenHash String    @unique
+  deviceName      String
+  isRevoked       Boolean   @default(false)
+  lastUsedAt      DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sessions        Session[]
+
+  @@index([adminUserId])
+  @@index([deviceTokenHash])
+  @@index([isRevoked])
+  @@map("trusted_devices")
 }
 
 // ==============================================================================

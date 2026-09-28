@@ -5,6 +5,7 @@ import { AttributeServiceError } from "./attribute-service";
 import { ProductServiceError } from "./product-service";
 import { InventoryServiceError } from "./inventory-service";
 import { MediaServiceError } from "./media-service";
+import { AuthError } from "./auth-service";
 
 export class ApiError extends Error {
   statusCode: number;
@@ -25,8 +26,47 @@ export function handleApiSuccess<T>(data: T, status: number = 200) {
   );
 }
 
+export function handleApiUnauthorized(message: string = "Authentication required.") {
+  return NextResponse.json(
+    {
+      success: false,
+      error: {
+        code: "UNAUTHORIZED",
+        message,
+      },
+    },
+    { status: 401 }
+  );
+}
+
+export function handleApiNotFound(message: string = "Resource not found.") {
+  return NextResponse.json(
+    {
+      success: false,
+      error: {
+        code: "NOT_FOUND",
+        message,
+      },
+    },
+    { status: 404 }
+  );
+}
+
 export function handleApiError(error: unknown) {
   console.error("API Error:", error);
+
+  if (error instanceof AuthError) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: error.code,
+          message: error.message,
+        },
+      },
+      { status: error.statusCode }
+    );
+  }
 
   if (
     error instanceof ApiError ||

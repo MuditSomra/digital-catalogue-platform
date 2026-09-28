@@ -1,12 +1,21 @@
 import { PrismaClient, AdminRole, AttributeType, VideoType, InventoryMovementType } from "@prisma/client";
+import crypto from "crypto";
 
 const prisma = new PrismaClient();
+
+function hashSeedPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const derivedKey = crypto.scryptSync(password, salt, 64);
+  return `${salt}:${derivedKey.toString("hex")}`;
+}
 
 async function main() {
   console.log("🌱 Starting database seeding for Kitchen Appliance Showroom (Phase 1)...");
 
   // 1. Clean existing records in dependency order
   console.log("🧹 Cleaning existing data...");
+  await prisma.session.deleteMany({});
+  await prisma.trustedDevice.deleteMany({});
   await prisma.inventoryMovement.deleteMany({});
   await prisma.inventory.deleteMany({});
   await prisma.productImage.deleteMany({});
@@ -25,9 +34,9 @@ async function main() {
     data: {
       email: "admin@kitchenshowroom.local",
       name: "System Administrator",
+      passwordHash: hashSeedPassword("Admin@Showroom2026!"),
       role: AdminRole.SUPER_ADMIN,
       isActive: true,
-      // Note: In Phase 2+, password hash or Supabase auth ID will be populated.
     },
   });
 
