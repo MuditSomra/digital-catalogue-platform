@@ -525,6 +525,18 @@ export interface ProductQuotationGroup {
     category: { id: string; name: string; slug: string };
     categories: { id: string; name: string; slug: string; isPrimary: boolean }[];
     primaryImage: { url: string; altText: string | null } | null;
+    images?: Array<{ id: string; url: string; altText: string | null; isPrimary: boolean }>;
+    attributeValues?: Array<{
+      id: string;
+      attributeId: string;
+      attributeSlug: string;
+      attributeName: string;
+      attributeType: string;
+      unit: string | null;
+      value: string | null;
+      numericValue: number | null;
+      booleanValue: boolean | null;
+    }>;
     currentStock: number;
   };
   quotations: SupplierQuotationItem[];
@@ -536,5 +548,6 @@ export interface ProductQuotationGroup {
   potentialMarginPercent: number | null;
   bestMarginPercent?: number | null;
 }
+
 
 

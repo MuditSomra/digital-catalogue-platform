@@ -14,7 +14,20 @@ export class PurchasingError extends Error {
 export interface GetQuotationsOptions {
   categoryId?: string | null;
   search?: string | null;
-  sortBy?: "price_asc" | "price_desc" | "supplier" | "date_desc" | "product_name" | null;
+  sortBy?:
+    | "lowest_price"
+    | "highest_margin"
+    | "newest"
+    | "supplier"
+    | "product_name"
+    | "price_asc"
+    | "price_desc"
+    | "margin_desc"
+    | "date_desc"
+    | "supplier_asc"
+    | "name_asc"
+    | string
+    | null;
   attributeFilters?: Record<string, string[]> | null;
 }
 
@@ -95,13 +108,25 @@ export async function getProductQuotations(
         },
       },
       images: {
-        where: { isPrimary: true },
-        select: { url: true, altText: true },
-        take: 1,
+        orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
+        select: { id: true, url: true, altText: true, isPrimary: true },
+      },
+      attributeValues: {
+        include: {
+          attribute: {
+            select: { id: true, name: true, slug: true, type: true, unit: true, sortOrder: true },
+          },
+        },
+        orderBy: {
+          attribute: { sortOrder: "asc" },
+        },
       },
       inventory: { select: { quantity: true } },
       quotations: {
         orderBy: { quotedPrice: "asc" },
+        include: {
+          createdBy: { select: { name: true, email: true } },
+        },
       },
     },
     orderBy: { name: "asc" },
@@ -115,40 +140,51 @@ export async function getProductQuotations(
     const rawQuotes = p.quotations || [];
     totalQuotationsCount += rawQuotes.length;
 
-    rawQuotes.forEach((q) => uniqueSuppliers.add(q.supplierName.trim().toLowerCase()));
+    rawQuotes.forEach((q) => {
+      if (q.supplierName) {
+        uniqueSuppliers.add(q.supplierName.trim().toLowerCase());
+      }
+    });
 
-    const formattedQuotes: SupplierQuotationItem[] = rawQuotes.map((q) => ({
-      id: q.id,
-      productId: q.productId,
-      supplierName: q.supplierName,
-      quotedPrice: Number(q.quotedPrice),
-      quotationDate: q.quotationDate.toISOString(),
-      validUntil: q.validUntil ? q.validUntil.toISOString() : null,
-      moq: q.moq,
-      leadTimeDays: q.leadTimeDays,
-      notes: q.notes,
-      createdById: q.createdById,
-      createdAt: q.createdAt.toISOString(),
-      updatedAt: q.updatedAt.toISOString(),
-    }));
-
-    // Calculate quote statistics
-    const prices = formattedQuotes.map((q) => q.quotedPrice);
+    const prices = rawQuotes.map((q) => Number(q.quotedPrice));
     const lowestQuotedPrice = prices.length > 0 ? Math.min(...prices) : null;
     const highestQuotedPrice = prices.length > 0 ? Math.max(...prices) : null;
     const averageQuotedPrice =
       prices.length > 0 ? Number((prices.reduce((sum, val) => sum + val, 0) / prices.length).toFixed(2)) : null;
 
-    const lowestQuote = formattedQuotes.find((q) => q.quotedPrice === lowestQuotedPrice);
+    const formattedQuotes: SupplierQuotationItem[] = rawQuotes.map((q) => {
+      const qPrice = Number(q.quotedPrice);
+      return {
+        id: q.id,
+        productId: q.productId,
+        supplierName: q.supplierName,
+        quotedPrice: qPrice,
+        quotationDate: q.quotationDate.toISOString(),
+        validUntil: q.validUntil ? q.validUntil.toISOString() : null,
+        moq: q.moq,
+        leadTimeDays: q.leadTimeDays,
+        notes: q.notes,
+        createdById: q.createdById,
+        createdByUser: q.createdBy ? { name: q.createdBy.name, email: q.createdBy.email } : null,
+        isLowestPrice: lowestQuotedPrice !== null && qPrice === lowestQuotedPrice,
+        createdAt: q.createdAt.toISOString(),
+        updatedAt: q.updatedAt.toISOString(),
+      };
+    });
+
+    const lowestQuote = formattedQuotes.find((q) => q.isLowestPrice);
     const lowestQuotationSupplier = lowestQuote ? lowestQuote.supplierName : null;
 
     const sellingPriceNum = p.sellingPrice ? Number(p.sellingPrice) : null;
+    const mrpNum = Number(p.mrp);
+    const baseRetailPrice = sellingPriceNum || mrpNum;
+
     let potentialMargin: number | null = null;
     let potentialMarginPercent: number | null = null;
 
-    if (sellingPriceNum && lowestQuotedPrice !== null) {
-      potentialMargin = Number((sellingPriceNum - lowestQuotedPrice).toFixed(2));
-      potentialMarginPercent = Number((((sellingPriceNum - lowestQuotedPrice) / sellingPriceNum) * 100).toFixed(1));
+    if (baseRetailPrice && lowestQuotedPrice !== null) {
+      potentialMargin = Number((baseRetailPrice - lowestQuotedPrice).toFixed(2));
+      potentialMarginPercent = Number((((baseRetailPrice - lowestQuotedPrice) / baseRetailPrice) * 100).toFixed(1));
     }
 
     // Deduplicated categories list (Primary + Secondary)
@@ -173,6 +209,25 @@ export async function getProductQuotations(
       });
     }
 
+    const primaryImg =
+      p.images && p.images.length > 0
+        ? p.images.find((img) => img.isPrimary) || p.images[0]
+        : null;
+
+    const formattedSpecs = (p.attributeValues || [])
+      .filter((av) => av.value || av.numericValue !== null || av.booleanValue !== null)
+      .map((av) => ({
+        id: av.id,
+        attributeId: av.attributeId,
+        attributeSlug: av.attribute.slug,
+        attributeName: av.attribute.name,
+        attributeType: av.attribute.type,
+        unit: av.attribute.unit,
+        value: av.value,
+        numericValue: av.numericValue ? Number(av.numericValue) : null,
+        booleanValue: av.booleanValue,
+      }));
+
     return {
       product: {
         id: p.id,
@@ -180,13 +235,15 @@ export async function getProductQuotations(
         slug: p.slug,
         sku: p.sku,
         modelNumber: p.modelNumber,
-        mrp: Number(p.mrp),
+        mrp: mrpNum,
         sellingPrice: sellingPriceNum,
         privatePriceCode: p.privatePriceCode,
         brand: p.brand,
         category: p.category,
         categories: Array.from(categoryMap.values()),
-        primaryImage: p.images && p.images.length > 0 ? p.images[0] : null,
+        primaryImage: primaryImg ? { url: primaryImg.url, altText: primaryImg.altText } : null,
+        images: p.images || [],
+        attributeValues: formattedSpecs,
         currentStock: p.inventory?.quantity || 0,
       },
       quotations: formattedQuotes,
@@ -199,32 +256,80 @@ export async function getProductQuotations(
     };
   });
 
-  // 6. Apply sorting to product groups
-  if (sortBy === "price_asc") {
+  // 6. Apply comprehensive sorting to product groups
+  if (sortBy === "lowest_price" || sortBy === "price_asc") {
     groups.sort((a, b) => {
-      const pA = a.lowestQuotedPrice ?? Number.MAX_VALUE;
-      const pB = b.lowestQuotedPrice ?? Number.MAX_VALUE;
-      return pA - pB;
+      if (a.lowestQuotedPrice === null && b.lowestQuotedPrice === null) {
+        return a.product.name.localeCompare(b.product.name);
+      }
+      if (a.lowestQuotedPrice === null) return 1;
+      if (b.lowestQuotedPrice === null) return -1;
+      if (a.lowestQuotedPrice !== b.lowestQuotedPrice) {
+        return a.lowestQuotedPrice - b.lowestQuotedPrice;
+      }
+      return a.product.name.localeCompare(b.product.name);
     });
-  } else if (sortBy === "price_desc") {
+  } else if (sortBy === "highest_margin" || sortBy === "margin_desc") {
     groups.sort((a, b) => {
-      const pA = a.lowestQuotedPrice ?? -1;
-      const pB = b.lowestQuotedPrice ?? -1;
-      return pB - pA;
+      const mA = a.potentialMarginPercent;
+      const mB = b.potentialMarginPercent;
+      if (mA === null && mB === null) {
+        return a.product.name.localeCompare(b.product.name);
+      }
+      if (mA === null) return 1;
+      if (mB === null) return -1;
+      if (mB !== mA) {
+        return mB - mA; // Highest margin % first
+      }
+      return a.product.name.localeCompare(b.product.name);
     });
-  } else if (sortBy === "supplier") {
+  } else if (sortBy === "newest" || sortBy === "date_desc") {
     groups.sort((a, b) => {
-      const sA = a.lowestQuotationSupplier || "zzz";
-      const sB = b.lowestQuotationSupplier || "zzz";
-      return sA.localeCompare(sB);
+      const getLatestDate = (g: ProductQuotationGroup) => {
+        if (!g.quotations || g.quotations.length === 0) return 0;
+        return Math.max(
+          ...g.quotations.map((q) => {
+            const d = q.quotationDate ? new Date(q.quotationDate).getTime() : 0;
+            return isNaN(d) ? 0 : d;
+          })
+        );
+      };
+      const dA = getLatestDate(a);
+      const dB = getLatestDate(b);
+      if (dA === 0 && dB === 0) {
+        return a.product.name.localeCompare(b.product.name);
+      }
+      if (dA === 0) return 1;
+      if (dB === 0) return -1;
+      if (dB !== dA) {
+        return dB - dA; // Newest quotation date first
+      }
+      return a.product.name.localeCompare(b.product.name);
     });
-  } else if (sortBy === "product_name") {
-    groups.sort((a, b) => a.product.name.localeCompare(b.product.name));
-  } else if (sortBy === "date_desc") {
+  } else if (sortBy === "supplier" || sortBy === "supplier_asc") {
     groups.sort((a, b) => {
-      const dA = a.quotations[0]?.quotationDate ? new Date(a.quotations[0].quotationDate).getTime() : 0;
-      const dB = b.quotations[0]?.quotationDate ? new Date(b.quotations[0].quotationDate).getTime() : 0;
-      return dB - dA;
+      const sA = a.lowestQuotationSupplier?.trim();
+      const sB = b.lowestQuotationSupplier?.trim();
+      if (!sA && !sB) {
+        return a.product.name.localeCompare(b.product.name);
+      }
+      if (!sA) return 1;
+      if (!sB) return -1;
+      const comp = sA.localeCompare(sB, undefined, { sensitivity: "base" });
+      if (comp !== 0) return comp;
+      return a.product.name.localeCompare(b.product.name);
+    });
+  } else if (sortBy === "product_name" || sortBy === "name_asc") {
+    groups.sort((a, b) => a.product.name.localeCompare(b.product.name, undefined, { sensitivity: "base" }));
+  } else {
+    // Default fallback: Lowest quoted price
+    groups.sort((a, b) => {
+      if (a.lowestQuotedPrice === null && b.lowestQuotedPrice === null) {
+        return a.product.name.localeCompare(b.product.name);
+      }
+      if (a.lowestQuotedPrice === null) return 1;
+      if (b.lowestQuotedPrice === null) return -1;
+      return a.lowestQuotedPrice - b.lowestQuotedPrice;
     });
   }
 

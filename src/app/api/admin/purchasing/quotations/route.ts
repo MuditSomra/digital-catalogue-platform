@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const categoryId = searchParams.get("categoryId") || undefined;
     const search = searchParams.get("search") || undefined;
-    const sortBy = (searchParams.get("sortBy") as any) || "price_asc";
+    const sortBy = searchParams.get("sortBy") || "lowest_price";
 
     // Parse any attribute filter query parameters (prefix attr_)
     const attributeFilters: Record<string, string[]> = {};

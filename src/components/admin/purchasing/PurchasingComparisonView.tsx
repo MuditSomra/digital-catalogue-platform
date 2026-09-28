@@ -6,7 +6,6 @@ import {
   Building2,
   DollarSign,
   Search,
-  Filter,
   ArrowUpDown,
   Plus,
   TrendingUp,
@@ -17,6 +16,8 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Boxes,
   CheckCircle2,
   Trash2,
@@ -28,7 +29,12 @@ import {
   AlertCircle,
   PackageCheck,
   BadgeAlert,
+  ImageIcon,
+  Eye,
+  X,
+  Package,
 } from "lucide-react";
+import { CascadingCategorySelect } from "@/components/ui/CascadingCategorySelect";
 import type {
   ProductQuotationGroup,
   SupplierQuotationItem,
@@ -84,11 +90,25 @@ export function PurchasingComparisonView({
   // Collapsed / Expanded state for product quotation groups (default all expanded)
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
+  // Image Gallery Lightbox Modal State
+  const [galleryProduct, setGalleryProduct] = useState<ProductQuotationGroup["product"] | null>(null);
+  const [galleryActiveIndex, setGalleryActiveIndex] = useState(0);
+
   const toggleGroupCollapse = (productId: string) => {
     setCollapsedGroups((prev) => ({
       ...prev,
       [productId]: !prev[productId],
     }));
+  };
+
+  const handleOpenGallery = (product: ProductQuotationGroup["product"], initialIndex = 0) => {
+    setGalleryProduct(product);
+    setGalleryActiveIndex(initialIndex);
+  };
+
+  const handleCloseGallery = () => {
+    setGalleryProduct(null);
+    setGalleryActiveIndex(0);
   };
 
   // Quick statistics calculated across all loaded quotation groups
@@ -113,8 +133,9 @@ export function PurchasingComparisonView({
 
     for (const group of groups) {
       if (!group || !group.product) continue;
-      if (group.lowestQuotedPrice !== null && group.lowestQuotedPrice !== undefined && group.product.sellingPrice) {
-        const diff = group.product.sellingPrice - group.lowestQuotedPrice;
+      const retailPrice = group.product.sellingPrice || group.product.mrp;
+      if (group.lowestQuotedPrice !== null && group.lowestQuotedPrice !== undefined && retailPrice) {
+        const diff = retailPrice - group.lowestQuotedPrice;
         if (diff > 0) {
           totalPotentialSavings += diff;
           productsWithQuotes++;
@@ -129,25 +150,6 @@ export function PurchasingComparisonView({
       avgSavings: productsWithQuotes > 0 ? Math.round(totalPotentialSavings / productsWithQuotes) : 0,
     };
   }, [groups]);
-
-  // Flattened category list for the dropdown
-  const flatCategories = useMemo(() => {
-    const list: Array<{ id: string; name: string; level: number }> = [];
-    function traverse(nodes: any[], level = 0) {
-      if (!nodes || !Array.isArray(nodes)) return;
-      for (const node of nodes) {
-        if (!node || !node.id) continue;
-        list.push({ id: node.id, name: node.name, level });
-        if (node.children && Array.isArray(node.children)) {
-          traverse(node.children, level + 1);
-        }
-      }
-    }
-    if (Array.isArray(categories)) {
-      traverse(categories);
-    }
-    return list;
-  }, [categories]);
 
   const hasActiveFilters =
     Boolean(search) ||
@@ -212,7 +214,7 @@ export function PurchasingComparisonView({
             ₹{stats.avgSavings.toLocaleString("en-IN")}
           </div>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Best quote vs selling price
+            Best quote vs retail price
           </p>
         </div>
       </div>
@@ -221,36 +223,34 @@ export function PurchasingComparisonView({
       <div className="p-4 bg-card border border-border rounded-2xl shadow-xs space-y-3.5">
         <div className="flex flex-col lg:flex-row lg:items-center gap-3">
           {/* Search Box */}
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-[220px]">
             <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search by product name, SKU, model, brand, or supplier name..."
+              placeholder="Search by product name, SKU, model, brand, or supplier..."
               className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-xl text-xs sm:text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
             />
           </div>
 
-          {/* Category Filter */}
-          <div className="w-full lg:w-64">
-            <select
+          {/* Reused Cascading Category Selector */}
+          <div className="w-full lg:w-auto lg:min-w-[280px]">
+            <CascadingCategorySelect
               value={selectedCategoryId}
-              onChange={(e) => onCategoryChange(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-border rounded-xl text-xs sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-            >
-              <option value="">All Categories & Subcategories</option>
-              {flatCategories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.level > 0 ? `${"—".repeat(c.level)} ` : ""}
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              onChange={(newCatId) => onCategoryChange(newCatId || "")}
+              categories={categories}
+              allowRootSelection={true}
+              rootLabel="All Categories"
+              isFilterMode={true}
+              size="sm"
+              layout="responsive"
+              idPrefix="purchasing-filter-cat"
+            />
           </div>
 
           {/* Sort Filter */}
-          <div className="w-full lg:w-56">
+          <div className="w-full lg:w-56 shrink-0">
             <div className="relative">
               <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <select
@@ -261,8 +261,8 @@ export function PurchasingComparisonView({
                 <option value="lowest_price">Lowest Quoted Price</option>
                 <option value="highest_margin">Highest Gross Margin</option>
                 <option value="newest">Newest Quotation Date</option>
-                <option value="supplier">Supplier Name (A-Z)</option>
-                <option value="product_name">Product Name (A-Z)</option>
+                <option value="supplier">Supplier Name (A–Z)</option>
+                <option value="product_name">Product Name (A–Z)</option>
               </select>
             </div>
           </div>
@@ -330,7 +330,7 @@ export function PurchasingComparisonView({
               <button
                 type="button"
                 onClick={onClearFilters}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground transition"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground transition cursor-pointer"
               >
                 Clear All Filters
               </button>
@@ -339,7 +339,7 @@ export function PurchasingComparisonView({
                 <button
                   type="button"
                   onClick={() => onAddQuotation()}
-                  className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition flex items-center gap-2 shadow-xs"
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Add First Quotation</span>
@@ -347,7 +347,7 @@ export function PurchasingComparisonView({
                 <button
                   type="button"
                   onClick={onAddProductWithQuote}
-                  className="px-4 py-2.5 rounded-xl text-xs font-semibold border border-border bg-card hover:bg-muted text-foreground transition flex items-center gap-2"
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold border border-border bg-card hover:bg-muted text-foreground transition flex items-center gap-2 cursor-pointer"
                 >
                   <PackageCheck className="w-4 h-4 text-primary" />
                   <span>Create Product with Quote</span>
@@ -361,7 +361,9 @@ export function PurchasingComparisonView({
           {groups.map((group) => {
             const isCollapsed = Boolean(collapsedGroups[group.product.id]);
             const quoteCount = group.quotations.length;
-            const hasMultipleQuotes = quoteCount > 1;
+            const imagesList = group.product.images || [];
+            const primaryImg = group.product.primaryImage;
+            const specsList = group.product.attributeValues || [];
 
             return (
               <div
@@ -370,54 +372,121 @@ export function PurchasingComparisonView({
               >
                 {/* PRODUCT HEADER BAR */}
                 <div className="p-4 sm:p-5 border-b border-border/80 bg-muted/20 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  {/* Left: Product Info & Categories */}
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {group.product.brand && (
-                        <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[11px] font-bold border border-primary/20">
-                          {group.product.brand.name}
-                        </span>
+                  {/* Left: Product Image, Details & Dynamic Specifications */}
+                  <div className="flex items-start gap-3.5 sm:gap-4 flex-1 min-w-0">
+                    {/* Product Image Thumbnail & Gallery Trigger */}
+                    <div
+                      onClick={() => handleOpenGallery(group.product, 0)}
+                      className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-xl bg-background border border-border overflow-hidden relative cursor-pointer group/thumb hover:border-primary/50 transition select-none flex items-center justify-center"
+                      title={imagesList.length > 1 ? `Click to view all ${imagesList.length} photos` : "Click to view photo preview"}
+                    >
+                      {primaryImg?.url ? (
+                        <img
+                          src={primaryImg.url}
+                          alt={primaryImg.altText || group.product.name}
+                          className="w-full h-full object-contain p-1 group-hover/thumb:scale-105 transition-transform duration-200"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-muted-foreground/50 gap-1 p-1">
+                          <ImageIcon className="w-5 h-5" />
+                          <span className="text-[9px] font-medium uppercase tracking-wider">No photo</span>
+                        </div>
                       )}
-                      <h3 className="text-sm sm:text-base font-bold text-foreground truncate">
-                        {group.product.name}
-                      </h3>
+
+                      {/* Photo count indicator badge */}
+                      {imagesList.length > 1 && (
+                        <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-black/75 backdrop-blur-xs text-white text-[9px] font-bold flex items-center gap-0.5 shadow-xs">
+                          <span>📷</span>
+                          <span>{imagesList.length}</span>
+                        </div>
+                      )}
+
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
+                        <Eye className="w-4 h-4 text-primary drop-shadow-xs" />
+                      </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-muted border border-border">
-                        SKU: {group.product.sku}
-                      </span>
-                      {group.product.modelNumber && (
-                        <span className="text-[11px]">Model: {group.product.modelNumber}</span>
-                      )}
-                      <span className="text-border">•</span>
+                    {/* Product Metadata & Specifications */}
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {group.product.brand && (
+                          <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[11px] font-bold border border-primary/20">
+                            {group.product.brand.name}
+                          </span>
+                        )}
+                        <h3 className="text-sm sm:text-base font-bold text-foreground truncate">
+                          {group.product.name}
+                        </h3>
+                      </div>
 
-                      {/* Primary Category */}
-                      {group.product.category && (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-primary font-medium">
-                          <Layers className="w-3 h-3" />
-                          {group.product.category.name}
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-muted border border-border">
+                          SKU: {group.product.sku}
                         </span>
-                      )}
+                        {group.product.modelNumber && (
+                          <span className="text-[11px]">Model: {group.product.modelNumber}</span>
+                        )}
+                        <span className="text-border">•</span>
 
-                      {/* Additional Secondary Categories (Multi-Category Display) */}
-                      {group.product.categories &&
-                        group.product.categories
-                          .filter((pc) => !pc.isPrimary)
-                          .map((pc) => (
-                            <span
-                              key={pc.id}
-                              className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground border border-border"
-                              title="Additional Category Membership"
-                            >
-                              +{pc.name}
-                            </span>
-                          ))}
+                        {/* Primary Category */}
+                        {group.product.category && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-primary font-medium">
+                            <Layers className="w-3 h-3" />
+                            {group.product.category.name}
+                          </span>
+                        )}
+
+                        {/* Secondary Categories */}
+                        {group.product.categories &&
+                          group.product.categories
+                            .filter((pc) => !pc.isPrimary)
+                            .map((pc) => (
+                              <span
+                                key={pc.id}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground border border-border"
+                                title="Additional Category Membership"
+                              >
+                                +{pc.name}
+                              </span>
+                            ))}
+
+                        {/* Current Floor Stock */}
+                        <span className="text-border">•</span>
+                        <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                          <Boxes className="w-3 h-3 text-muted-foreground/80" />
+                          <span>Stock: <strong className="text-foreground">{group.product.currentStock}</strong></span>
+                        </span>
+                      </div>
+
+                      {/* DYNAMIC PRODUCT SPECIFICATIONS (Material, Gas Type, Ignition, Burners, etc.) */}
+                      {specsList.length > 0 && (
+                        <div className="pt-1 flex flex-wrap items-center gap-1.5">
+                          {specsList.map((spec) => {
+                            const valDisplay =
+                              spec.value ||
+                              (spec.numericValue !== null ? `${spec.numericValue}${spec.unit ? ` ${spec.unit}` : ""}` : "") ||
+                              (spec.booleanValue ? "Yes" : "");
+                            if (!valDisplay) return null;
+
+                            return (
+                              <span
+                                key={spec.id}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-muted/60 hover:bg-muted text-muted-foreground border border-border/70 text-[11px] transition"
+                                title={`${spec.attributeName}: ${valDisplay}`}
+                              >
+                                <span className="text-muted-foreground/80 font-normal">{spec.attributeName}:</span>
+                                <span className="font-semibold text-foreground">{valDisplay}</span>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Right: Pricing, Best Quote Summary & Actions */}
-                  <div className="flex flex-wrap items-center gap-3 shrink-0">
+                  {/* Right: Retail Pricing, Best Quote Summary & Actions */}
+                  <div className="flex flex-wrap items-center gap-3 shrink-0 self-start lg:self-center">
                     {/* Retail Pricing Indicators */}
                     <div className="text-right hidden sm:block pr-3 border-r border-border">
                       <div className="text-[11px] text-muted-foreground">Retail Pricing</div>
@@ -474,7 +543,7 @@ export function PurchasingComparisonView({
                     <button
                       type="button"
                       onClick={() => toggleGroupCollapse(group.product.id)}
-                      className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition"
+                      className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer"
                       aria-label="Toggle quotation list"
                     >
                       {isCollapsed ? (
@@ -639,7 +708,7 @@ export function PurchasingComparisonView({
                                     <button
                                       type="button"
                                       onClick={() => onEditQuotation(quote)}
-                                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
+                                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition cursor-pointer"
                                       title="Edit Quotation"
                                     >
                                       <Edit2 className="w-3.5 h-3.5" />
@@ -647,7 +716,7 @@ export function PurchasingComparisonView({
                                     <button
                                       type="button"
                                       onClick={() => onDeleteQuotation(quote)}
-                                      className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition"
+                                      className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition cursor-pointer"
                                       title="Delete Quotation"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -665,6 +734,100 @@ export function PurchasingComparisonView({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* IMAGE GALLERY / PREVIEW LIGHTBOX MODAL */}
+      {galleryProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="relative w-full max-w-3xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-sm text-foreground">{galleryProduct.name}</h4>
+                <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                  <span className="font-mono">SKU: {galleryProduct.sku}</span>
+                  {galleryProduct.brand && <span>• {galleryProduct.brand.name}</span>}
+                  {galleryProduct.category && <span>• {galleryProduct.category.name}</span>}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseGallery}
+                className="p-1.5 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body: Active Image Preview */}
+            <div className="p-6 flex-1 flex items-center justify-center bg-muted/20 relative min-h-[300px] sm:min-h-[420px]">
+              {galleryProduct.images && galleryProduct.images.length > 0 ? (
+                <>
+                  <img
+                    src={galleryProduct.images[galleryActiveIndex]?.url || galleryProduct.primaryImage?.url || ""}
+                    alt={galleryProduct.images[galleryActiveIndex]?.altText || galleryProduct.name}
+                    className="max-h-[50vh] w-auto max-w-full object-contain rounded-lg shadow-sm"
+                  />
+
+                  {/* Previous Button */}
+                  {galleryProduct.images.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setGalleryActiveIndex((prev) =>
+                          prev === 0 ? (galleryProduct.images?.length || 1) - 1 : prev - 1
+                        )
+                      }
+                      className="absolute left-4 p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition shadow-md cursor-pointer"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                  )}
+
+                  {/* Next Button */}
+                  {galleryProduct.images.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setGalleryActiveIndex((prev) =>
+                          prev === (galleryProduct.images?.length || 1) - 1 ? 0 : prev + 1
+                        )
+                      }
+                      className="absolute right-4 p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition shadow-md cursor-pointer"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center text-muted-foreground gap-2">
+                  <Package className="w-16 h-16 stroke-[1.2] text-muted-foreground/40" />
+                  <span className="text-xs font-medium">No images uploaded for this product</span>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer: Thumbnail Strip */}
+            {galleryProduct.images && galleryProduct.images.length > 1 && (
+              <div className="p-3 border-t border-border bg-card flex items-center justify-center gap-2 overflow-x-auto">
+                {galleryProduct.images.map((img, idx) => (
+                  <button
+                    key={img.id || idx}
+                    type="button"
+                    onClick={() => setGalleryActiveIndex(idx)}
+                    className={`w-14 h-14 rounded-lg overflow-hidden border-2 shrink-0 transition cursor-pointer p-0.5 bg-background ${
+                      galleryActiveIndex === idx
+                        ? "border-primary ring-2 ring-primary/30"
+                        : "border-border hover:border-muted-foreground/50 opacity-70 hover:opacity-100"
+                    }`}
+                  >
+                    <img src={img.url} alt={img.altText || ""} className="w-full h-full object-contain" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
