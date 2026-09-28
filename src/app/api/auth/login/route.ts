@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       },
       isTrustedDevice: authResult.isTrustedDevice,
       expiresAt: authResult.session.expiresAt.toISOString(),
-      redirectUrl: "/admin",
+      redirectUrl: "/",
       message: authResult.isTrustedDevice
         ? "Logged in securely as Main Shop Device (90-day persistent session)."
         : "Logged in securely (8-hour standard session).",

@@ -1,5 +1,5 @@
 import React from "react";
-import { requireAuth } from "@/lib/auth-server";
+import { requireAdminAuth } from "@/lib/auth-server";
 import { AdminLayoutShell } from "@/components/admin/AdminLayoutShell";
 
 export const dynamic = "force-dynamic";
@@ -9,8 +9,9 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Server-side authentication guard for entire /admin tree
-  await requireAuth("/admin");
+  // Server-side authentication & PIN verification guard for entire /admin tree
+  await requireAdminAuth("/admin");
 
   return <AdminLayoutShell>{children}</AdminLayoutShell>;
 }
+

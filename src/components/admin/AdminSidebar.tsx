@@ -89,6 +89,18 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
     }
   };
 
+  const handleExitToShowroom = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (onClose) onClose();
+    try {
+      await fetch("/api/admin/pin/lock", { method: "POST" });
+    } catch {
+      // Continue navigation
+    }
+    router.push("/");
+    router.refresh();
+  };
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -182,13 +194,14 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           <p className="text-[11px] text-muted-foreground leading-relaxed">
             Switch to the customer showroom view for client demonstrations.
           </p>
-          <Link
-            href="/"
-            className="w-full py-2 px-3 rounded-xl bg-background hover:bg-card border border-border text-foreground hover:text-primary text-xs font-semibold flex items-center justify-center gap-2 transition shadow-xs"
+          <button
+            type="button"
+            onClick={handleExitToShowroom}
+            className="w-full py-2 px-3 rounded-xl bg-background hover:bg-card border border-border text-foreground hover:text-primary text-xs font-semibold flex items-center justify-center gap-2 transition shadow-xs cursor-pointer"
           >
             <Store className="w-3.5 h-3.5 text-primary" />
             <span>Customer Showroom &rarr;</span>
-          </Link>
+          </button>
         </div>
 
         {/* Footer info & Logout */}

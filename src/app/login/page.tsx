@@ -21,7 +21,7 @@ function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const returnUrl = searchParams.get("returnUrl") || "/admin";
+  const returnUrl = searchParams.get("returnUrl") || "/";
   const errorParam = searchParams.get("error");
 
   const [email, setEmail] = useState("admin@kitchenshowroom.local");
@@ -69,8 +69,8 @@ function LoginFormContent() {
       const json = await res.json();
 
       if (json.success) {
-        // Successful login -> Redirect to requested page or default /admin
-        const destination = returnUrl && returnUrl.startsWith("/") ? returnUrl : "/admin";
+        // Successful login -> Redirect to requested page or default showroom (/)
+        const destination = returnUrl && returnUrl.startsWith("/") ? returnUrl : "/";
         router.push(destination);
         router.refresh();
       } else {

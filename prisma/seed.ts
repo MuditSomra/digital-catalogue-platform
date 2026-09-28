@@ -28,17 +28,29 @@ async function main() {
   await prisma.brand.deleteMany({});
   await prisma.adminUser.deleteMany({});
 
-  // 2. Seed Default Admin User
+  // 2. Seed Default Admin User & Owner PIN
   console.log("👤 Creating seed admin user...");
+  const pinSalt = crypto.randomBytes(16).toString("hex");
+  const pinDerivedKey = crypto.scryptSync("1234", pinSalt, 64);
+  const defaultPinHash = `${pinSalt}:${pinDerivedKey.toString("hex")}`;
+
   const adminUser = await prisma.adminUser.create({
     data: {
       email: "admin@kitchenshowroom.local",
       name: "System Administrator",
       passwordHash: hashSeedPassword("Admin@Showroom2026!"),
+      pinHash: defaultPinHash,
       role: AdminRole.SUPER_ADMIN,
       isActive: true,
     },
   });
+
+  await prisma.storeSetting.upsert({
+    where: { key: "owner_pin_hash" },
+    create: { key: "owner_pin_hash", value: defaultPinHash },
+    update: { value: defaultPinHash },
+  });
+
 
   // 3. Seed Starter Brands
   console.log("🏷️ Creating sample brands...");

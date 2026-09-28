@@ -27,6 +27,17 @@ export function AdminHeader({ onToggleSidebar, title }: AdminHeaderProps) {
     }
   };
 
+  const handleExitToShowroom = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      await fetch("/api/admin/pin/lock", { method: "POST" });
+    } catch {
+      // Continue navigation
+    }
+    router.push("/");
+    router.refresh();
+  };
+
   return (
     <header className="sticky top-0 z-30 h-16 bg-card/80 backdrop-blur-md border-b border-border flex items-center justify-between px-4 sm:px-6 lg:px-8">
       <div className="flex items-center gap-3">
@@ -57,14 +68,15 @@ export function AdminHeader({ onToggleSidebar, title }: AdminHeaderProps) {
 
       {/* Right User & Shop Owner Status */}
       <div className="flex items-center gap-2.5 sm:gap-3">
-        <Link
-          href="/"
-          className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/15 border border-primary/20 text-xs font-semibold text-primary transition shadow-2xs"
+        <button
+          type="button"
+          onClick={handleExitToShowroom}
+          className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/15 border border-primary/20 text-xs font-semibold text-primary transition shadow-2xs cursor-pointer"
           title="Switch to Customer Showroom"
         >
           <Sparkles className="w-3.5 h-3.5" />
           <span>Customer Showroom</span>
-        </Link>
+        </button>
 
         <div className="flex items-center gap-2 pl-2 border-l border-border/80">
           <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-primary">
