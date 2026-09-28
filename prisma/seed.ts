@@ -16,6 +16,8 @@ async function main() {
   console.log("🧹 Cleaning existing data...");
   await prisma.session.deleteMany({});
   await prisma.trustedDevice.deleteMany({});
+  await prisma.supplierQuotation.deleteMany({});
+  await prisma.productCategory.deleteMany({});
   await prisma.inventoryMovement.deleteMany({});
   await prisma.inventory.deleteMany({});
   await prisma.productImage.deleteMany({});
@@ -28,19 +30,31 @@ async function main() {
   await prisma.brand.deleteMany({});
   await prisma.adminUser.deleteMany({});
 
-  // 2. Seed Default Admin User & Owner PIN
-  console.log("👤 Creating seed admin user...");
+  // 2. Seed Owner and Admin Accounts
+  console.log("👤 Creating seed Owner and Admin users...");
   const pinSalt = crypto.randomBytes(16).toString("hex");
   const pinDerivedKey = crypto.scryptSync("1234", pinSalt, 64);
   const defaultPinHash = `${pinSalt}:${pinDerivedKey.toString("hex")}`;
 
+  // Dedicated Owner Account
+  const ownerUser = await prisma.adminUser.create({
+    data: {
+      email: "owner@kitchenshowroom.local",
+      name: "Store Owner",
+      passwordHash: hashSeedPassword("Owner@Showroom2026!"),
+      pinHash: defaultPinHash,
+      role: AdminRole.OWNER,
+      isActive: true,
+    },
+  });
+
+  // Dedicated Regular Admin Account (No access to Purchasing/Quotes)
   const adminUser = await prisma.adminUser.create({
     data: {
       email: "admin@kitchenshowroom.local",
-      name: "System Administrator",
+      name: "Store Manager",
       passwordHash: hashSeedPassword("Admin@Showroom2026!"),
-      pinHash: defaultPinHash,
-      role: AdminRole.SUPER_ADMIN,
+      role: AdminRole.ADMIN,
       isActive: true,
     },
   });
@@ -743,13 +757,187 @@ async function main() {
     },
   });
 
+  // 7. Seed Multi-Category Product Associations
+  console.log("🔗 Linking products to primary and secondary categories...");
+  const allSampleProducts = [
+    { product: p1, categories: [{ id: gasStoves.id, isPrimary: true }, { id: cookingAppliances.id, isPrimary: false }] },
+    { product: p2, categories: [{ id: gasStoves.id, isPrimary: true }, { id: cookingAppliances.id, isPrimary: false }] },
+    { product: p3, categories: [{ id: gasStoves.id, isPrimary: true }, { id: cookingAppliances.id, isPrimary: false }] },
+    { product: p4, categories: [{ id: gasStoves.id, isPrimary: true }, { id: cookingAppliances.id, isPrimary: false }] },
+    { product: p5, categories: [{ id: kitchenChimneys.id, isPrimary: true }, { id: kitchenVentilation.id, isPrimary: false }] },
+    { product: p6, categories: [{ id: mixerGrinders.id, isPrimary: true }, { id: foodPreparation.id, isPrimary: false }] },
+  ];
+
+  for (const item of allSampleProducts) {
+    for (const cat of item.categories) {
+      await prisma.productCategory.create({
+        data: {
+          productId: item.product.id,
+          categoryId: cat.id,
+          isPrimary: cat.isPrimary,
+        },
+      });
+    }
+  }
+
+  // 8. Seed Supplier Quotations (Private Purchasing Comparison Data)
+  console.log("💰 Creating sample supplier quotations for quotation comparison...");
+  const sampleQuotations = [
+    // Product 1: Prestige Royale Plus 3-Burner Gas Stove (MRP: 8495, Selling: 6499)
+    {
+      productId: p1.id,
+      supplierName: "Apex Kitchen Distributors Ltd.",
+      quotedPrice: 4200.0,
+      quotationDate: new Date("2026-09-15"),
+      moq: 5,
+      leadTimeDays: 3,
+      notes: "Net 30 payment terms. Free freight on orders over 10 units.",
+      createdById: ownerUser.id,
+    },
+    {
+      productId: p1.id,
+      supplierName: "National Appliance Wholesalers",
+      quotedPrice: 3950.0, // Lowest Price!
+      quotationDate: new Date("2026-09-20"),
+      moq: 10,
+      leadTimeDays: 5,
+      notes: "Best volume pricing. Cash on delivery 2% additional discount.",
+      createdById: ownerUser.id,
+    },
+    {
+      productId: p1.id,
+      supplierName: "Metro Retail Logistics",
+      quotedPrice: 4400.0,
+      quotationDate: new Date("2026-09-10"),
+      moq: 2,
+      leadTimeDays: 2,
+      notes: "Fast next-day delivery available for urgent stock replenishment.",
+      createdById: ownerUser.id,
+    },
+
+    // Product 2: Glen 4-Burner Glass Top (MRP: 11990, Selling: 8990)
+    {
+      productId: p2.id,
+      supplierName: "Glen Direct Regional Hub",
+      quotedPrice: 5800.0, // Lowest Price!
+      quotationDate: new Date("2026-09-18"),
+      moq: 4,
+      leadTimeDays: 4,
+      notes: "Direct brand distributor quote with 2-year warranty card.",
+      createdById: ownerUser.id,
+    },
+    {
+      productId: p2.id,
+      supplierName: "Apex Kitchen Distributors Ltd.",
+      quotedPrice: 6150.0,
+      quotationDate: new Date("2026-09-12"),
+      moq: 5,
+      leadTimeDays: 3,
+      notes: "Standard trade catalog pricing.",
+      createdById: ownerUser.id,
+    },
+
+    // Product 3: Elica Pro 3-Burner Glass Top (MRP: 9990, Selling: 7490)
+    {
+      productId: p3.id,
+      supplierName: "Euro Kitchen Trade Partners",
+      quotedPrice: 4800.0, // Lowest Price!
+      quotationDate: new Date("2026-09-22"),
+      moq: 6,
+      leadTimeDays: 7,
+      notes: "Imported batch allocation with factory seal assurance.",
+      createdById: ownerUser.id,
+    },
+    {
+      productId: p3.id,
+      supplierName: "National Appliance Wholesalers",
+      quotedPrice: 5100.0,
+      quotationDate: new Date("2026-09-19"),
+      moq: 8,
+      leadTimeDays: 4,
+      notes: "Regular distribution rate.",
+      createdById: ownerUser.id,
+    },
+
+    // Product 4: Faber 3-Burner Built-in Hob (MRP: 14990, Selling: 11490)
+    {
+      productId: p4.id,
+      supplierName: "Faber Premium Trade Channel",
+      quotedPrice: 7600.0, // Lowest Price!
+      quotationDate: new Date("2026-09-25"),
+      moq: 3,
+      leadTimeDays: 5,
+      notes: "Special festive season promotional quotation.",
+      createdById: ownerUser.id,
+    },
+    {
+      productId: p4.id,
+      supplierName: "Apex Kitchen Distributors Ltd.",
+      quotedPrice: 8200.0,
+      quotationDate: new Date("2026-09-14"),
+      moq: 2,
+      leadTimeDays: 2,
+      notes: "Immediate dispatch from local warehouse depot.",
+      createdById: ownerUser.id,
+    },
+
+    // Product 5: Faber 60cm Auto Clean Chimney (MRP: 24990, Selling: 14990)
+    {
+      productId: p5.id,
+      supplierName: "Faber Premium Trade Channel",
+      quotedPrice: 9800.0, // Lowest Price!
+      quotationDate: new Date("2026-09-24"),
+      moq: 5,
+      leadTimeDays: 6,
+      notes: "Includes manufacturer motor warranty certificates.",
+      createdById: ownerUser.id,
+    },
+    {
+      productId: p5.id,
+      supplierName: "Metro Retail Logistics",
+      quotedPrice: 10400.0,
+      quotationDate: new Date("2026-09-16"),
+      moq: 3,
+      leadTimeDays: 3,
+      notes: "Includes free protective pallet shipping.",
+      createdById: ownerUser.id,
+    },
+
+    // Product 6: Philips 750W Mixer Grinder (MRP: 5295, Selling: 3899)
+    {
+      productId: p6.id,
+      supplierName: "Philips Consumer Channel Direct",
+      quotedPrice: 2450.0, // Lowest Price!
+      quotationDate: new Date("2026-09-21"),
+      moq: 12,
+      leadTimeDays: 3,
+      notes: "Direct supplier wholesale discount.",
+      createdById: ownerUser.id,
+    },
+    {
+      productId: p6.id,
+      supplierName: "National Appliance Wholesalers",
+      quotedPrice: 2600.0,
+      quotationDate: new Date("2026-09-11"),
+      moq: 6,
+      leadTimeDays: 4,
+      notes: "Flexible mixed carton ordering allowed.",
+      createdById: ownerUser.id,
+    },
+  ];
+
+  for (const q of sampleQuotations) {
+    await prisma.supplierQuotation.create({ data: q });
+  }
+
   console.log("✅ Database seeding completed successfully!");
   console.log(`📊 Seed Summary:`);
-  console.log(`   - 1 Admin User (Super Admin)`);
+  console.log(`   - 2 Accounts: Owner (owner@kitchenshowroom.local) & Admin (admin@kitchenshowroom.local)`);
   console.log(`   - 6 Development Brands`);
   console.log(`   - 28 Categories across 3 levels (Strictly 0 refrigeration categories)`);
   console.log(`   - 22 Dynamic Category Attributes with Predefined Values`);
-  console.log(`   - 6 Sample Products (including 4 Gas Stoves with diverse combinations for filter testing)`);
+  console.log(`   - 6 Sample Products with 12 Multi-Category memberships`);
+  console.log(`   - 13 Supplier Quotations across multiple competing suppliers`);
   console.log(`   - 6 Active Inventories & 6 Audited Purchase Inventory Movements`);
 }
 

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Menu, Home, Sparkles, LogOut, ShieldCheck } from "lucide-react";
+import { Menu, Home, Sparkles, LogOut, ShieldCheck, Crown, User } from "lucide-react";
 
 interface AdminHeaderProps {
   onToggleSidebar: () => void;
@@ -13,6 +13,34 @@ interface AdminHeaderProps {
 export function AdminHeader({ onToggleSidebar, title }: AdminHeaderProps) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [userRole, setUserRole] = useState<string>("OWNER");
+  const [userName, setUserName] = useState<string>("Store Owner");
+
+  useEffect(() => {
+    async function loadUser() {
+      try {
+        const res = await fetch("/api/auth/session");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data?.user) {
+            setUserRole(json.data.user.role);
+            setUserName(json.data.user.name || (json.data.user.role === "OWNER" ? "Store Owner" : "Store Admin"));
+          }
+        }
+      } catch {
+        // keep defaults
+      }
+    }
+    loadUser();
+  }, []);
+
+  const isOwner = userRole === "OWNER" || userRole === "SUPER_ADMIN";
+  const initials = userName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || (isOwner ? "SO" : "SA");
 
   const handleLogout = async () => {
     try {
@@ -61,7 +89,7 @@ export function AdminHeader({ onToggleSidebar, title }: AdminHeaderProps) {
           </Link>
           <span className="text-muted-foreground/60">/</span>
           <span className="font-semibold text-foreground">
-            {title || "Category & Specification Management"}
+            {title || "Retail Management"}
           </span>
         </div>
       </div>
@@ -79,15 +107,26 @@ export function AdminHeader({ onToggleSidebar, title }: AdminHeaderProps) {
         </button>
 
         <div className="flex items-center gap-2 pl-2 border-l border-border/80">
-          <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-            SO
+          <div
+            className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold ${
+              isOwner
+                ? "bg-amber-500/10 border-amber-500/25 text-amber-400"
+                : "bg-primary/10 border-primary/20 text-primary"
+            }`}
+          >
+            {initials}
           </div>
           <div className="hidden md:block text-left">
-            <div className="text-xs font-semibold text-foreground leading-tight">
-              Store Owner
+            <div className="text-xs font-semibold text-foreground leading-tight flex items-center gap-1">
+              <span>{userName}</span>
+              {isOwner && <Crown className="w-3 h-3 text-amber-400" />}
             </div>
-            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium leading-tight">
-              Authenticated
+            <div className="text-[10px] font-medium leading-tight">
+              {isOwner ? (
+                <span className="text-amber-400">Owner Access</span>
+              ) : (
+                <span className="text-emerald-400">Admin Staff</span>
+              )}
             </div>
           </div>
         </div>

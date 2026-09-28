@@ -32,6 +32,24 @@ export function ShowroomHeader({
   const searchParams = useSearchParams();
   const [loggingOut, setLoggingOut] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    async function checkSession() {
+      try {
+        const res = await fetch("/api/auth/session");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data?.user?.isOwner) {
+            setIsOwner(true);
+          }
+        }
+      } catch {
+        // keep defaults
+      }
+    }
+    checkSession();
+  }, []);
 
   // Auto-open PIN modal if redirected from /admin due to direct navigation attempt
   useEffect(() => {
@@ -114,16 +132,16 @@ export function ShowroomHeader({
               </Link>
             )}
 
-            {/* Mode Switch: PIN Protected Admin Switch */}
+            {/* Mode Switch: PIN Protected Dashboard Switch */}
             <button
               type="button"
               onClick={handleAdminClick}
               className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white transition shadow-xs cursor-pointer"
-              title="Enter Admin Management Panel (PIN Required)"
+              title={isOwner ? "Return to Owner Dashboard (PIN Required)" : "Return to Admin Panel (PIN Required)"}
             >
               <Lock className="w-3.5 h-3.5 text-blue-400" />
-              <span className="hidden xs:inline">Admin Panel</span>
-              <span className="xs:hidden">Admin</span>
+              <span className="hidden xs:inline">{isOwner ? "Owner Dashboard" : "Admin Panel"}</span>
+              <span className="xs:hidden">{isOwner ? "Owner" : "Admin"}</span>
             </button>
 
             {/* Logout Button */}
@@ -141,13 +159,13 @@ export function ShowroomHeader({
         </div>
       </header>
 
-      {/* Admin Mode Verification PIN Modal */}
+      {/* Mode Verification PIN Modal */}
       <PinModal
         isOpen={isPinModalOpen}
         onClose={() => setIsPinModalOpen(false)}
         onSuccess={handlePinSuccess}
-        title="Admin Access PIN"
-        description="Enter your 4-digit owner PIN to unlock the Admin Panel."
+        title={isOwner ? "Owner Dashboard Access PIN" : "Admin Access PIN"}
+        description={isOwner ? "Enter your 4-digit PIN to return to the Owner Dashboard." : "Enter your 4-digit PIN to unlock the Admin Panel."}
         action="admin_access"
       />
     </>

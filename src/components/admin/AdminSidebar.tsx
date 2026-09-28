@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -14,6 +14,8 @@ import {
   Store,
   SlidersHorizontal,
   LogOut,
+  Building2,
+  Lock,
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -21,7 +23,7 @@ interface AdminSidebarProps {
   onClose?: () => void;
 }
 
-const navItems = [
+const baseNavItems = [
   {
     name: "Dashboard",
     href: "/admin",
@@ -35,7 +37,7 @@ const navItems = [
     icon: Layers,
     description: "Structure & Specifications",
     active: true,
-    badge: "Phase 2",
+    badge: null,
   },
   {
     name: "Products",
@@ -43,7 +45,7 @@ const navItems = [
     icon: Package,
     description: "Showroom Catalogue",
     active: true,
-    badge: "Phase 3",
+    badge: null,
   },
   {
     name: "Inventory",
@@ -51,7 +53,7 @@ const navItems = [
     icon: Boxes,
     description: "Stock & Movements",
     active: true,
-    badge: "Phase 4",
+    badge: null,
   },
   {
     name: "Media Gallery",
@@ -59,7 +61,7 @@ const navItems = [
     icon: ImageIcon,
     description: "Product Photos & Videos",
     active: true,
-    badge: "Phase 5",
+    badge: null,
   },
   {
     name: "Settings",
@@ -67,7 +69,7 @@ const navItems = [
     icon: Settings,
     description: "Auth, Sessions & Security",
     active: true,
-    badge: "Phase 6",
+    badge: null,
   },
 ];
 
@@ -75,6 +77,41 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    async function checkSession() {
+      try {
+        const res = await fetch("/api/auth/session");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data?.user?.isOwner) {
+            setIsOwner(true);
+          }
+        }
+      } catch {
+        // Default to non-owner on error
+      }
+    }
+    checkSession();
+  }, []);
+
+  const navItems = [
+    ...baseNavItems.slice(0, 4),
+    ...(isOwner
+      ? [
+          {
+            name: "Purchasing",
+            href: "/admin/purchasing",
+            icon: Building2,
+            description: "Supplier Quotations & Comparison",
+            active: true,
+            badge: "Owner",
+          },
+        ]
+      : []),
+    ...baseNavItems.slice(4),
+  ];
 
   const handleLogout = async () => {
     try {

@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 import crypto from "crypto";
 import {
   SESSION_COOKIE_NAME,
@@ -11,8 +12,20 @@ import {
   type SessionValidationResult,
   type SessionValidationSuccess,
 } from "./auth-service";
+
+export {
+  SESSION_COOKIE_NAME,
+  DEVICE_COOKIE_NAME,
+  MAIN_DEVICE_COOKIE_MAX_AGE_SEC,
+  OTHER_DEVICE_COOKIE_MAX_AGE_SEC,
+  validateSession,
+  revokeSessionByToken,
+  type SessionValidationResult,
+  type SessionValidationSuccess,
+};
+
 import { isOwnerPinConfigured } from "./pin-service";
-import type { AdminUser, Session } from "@prisma/client";
+import { AdminRole, type AdminUser, type Session } from "@prisma/client";
 
 export const ADMIN_PIN_COOKIE_NAME = "shop_admin_unlocked";
 
@@ -161,6 +174,28 @@ export async function requireAdminAuth(returnUrl?: string): Promise<{
 }
 
 /**
+ * Server-side route guard for Owner-only sections (e.g. Purchasing).
+ * Requires:
+ * 1. Valid shop session.
+ * 2. Verified PIN.
+ * 3. Role is OWNER or SUPER_ADMIN.
+ * If role is ADMIN or other non-owner, redirects to /admin with forbidden alert.
+ */
+export async function requireOwnerAuth(returnUrl?: string): Promise<{
+  user: AdminUser;
+  session: Session;
+  isTrustedDevice: boolean;
+}> {
+  const auth = await requireAdminAuth(returnUrl || "/admin/purchasing");
+
+  if (auth.user.role !== AdminRole.OWNER && auth.user.role !== AdminRole.SUPER_ADMIN) {
+    redirect("/admin?error=forbidden");
+  }
+
+  return auth;
+}
+
+/**
  * API route guard.
  * Returns the authenticated user or throws/returns null.
  */
@@ -169,6 +204,57 @@ export async function getApiAuth(): Promise<SessionValidationSuccess | null> {
   if (!result.isValid) return null;
   return result;
 }
+
+/**
+ * Server-side API guard for Owner-only endpoints (e.g. /api/admin/purchasing/*).
+ * Returns:
+ * - { isValid: true, user, session } if authorized as Owner
+ * - { isValid: false, response: NextResponse } (401 Unauthorized or 403 Forbidden)
+ */
+export async function requireApiOwnerAuth(): Promise<
+  | { isValid: true; user: AdminUser; session: Session }
+  | { isValid: false; response: NextResponse }
+> {
+  const result = await getAuthenticatedSession();
+
+  if (!result.isValid) {
+    return {
+      isValid: false,
+      response: NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "UNAUTHORIZED",
+            message: "Authentication required to access purchasing resources.",
+          },
+        },
+        { status: 401 }
+      ),
+    };
+  }
+
+  const user = (result as SessionValidationSuccess).user;
+  const session = (result as SessionValidationSuccess).session;
+
+  if (user.role !== AdminRole.OWNER && user.role !== AdminRole.SUPER_ADMIN) {
+    return {
+      isValid: false,
+      response: NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "FORBIDDEN",
+            message: "Access forbidden. Owner permissions required to access purchasing and quotation data.",
+          },
+        },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return { isValid: true, user, session };
+}
+
 
 /**
  * Sets the session cookie on response headers / cookies store.

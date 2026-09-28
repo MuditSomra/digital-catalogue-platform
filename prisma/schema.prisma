@@ -16,6 +16,7 @@ datasource db {
 // ==============================================================================
 
 enum AdminRole {
+  OWNER
   SUPER_ADMIN
   ADMIN
   STAFF
@@ -63,6 +64,7 @@ model AdminUser {
   inventoryMovements InventoryMovement[]
   sessions           Session[]
   trustedDevices     TrustedDevice[]
+  quotations         SupplierQuotation[]
 
   @@index([email])
   @@index([role, isActive])
@@ -136,8 +138,9 @@ model Category {
   children Category[] @relation("CategoryHierarchy")
 
   // Relations
-  attributes CategoryAttribute[]
-  products   Product[]
+  attributes        CategoryAttribute[]
+  products          Product[]
+  productCategories ProductCategory[]
 
   @@index([parentId])
   @@index([slug])
@@ -238,11 +241,13 @@ model Product {
   // Relations
   brand              Brand                   @relation(fields: [brandId], references: [id], onDelete: Restrict)
   category           Category                @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  categories         ProductCategory[]
   attributeValues    ProductAttributeValue[]
   images             ProductImage[]
   videos             ProductVideo[]
   inventory          Inventory?
   inventoryMovements InventoryMovement[]
+  quotations         SupplierQuotation[]
 
   @@index([brandId])
   @@index([categoryId])
@@ -251,6 +256,56 @@ model Product {
   @@index([isActive, isFeatured])
   @@index([sellingPrice])
   @@map("products")
+}
+
+// ==============================================================================
+// 5.1 MULTI-CATEGORY PRODUCT MEMBERSHIP
+// ==============================================================================
+
+model ProductCategory {
+  id         String   @id @default(cuid())
+  productId  String
+  categoryId String
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  // Relations
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, categoryId])
+  @@index([productId])
+  @@index([categoryId])
+  @@map("product_categories")
+}
+
+// ==============================================================================
+// 5.2 SUPPLIER QUOTATIONS (Private Purchasing)
+// ==============================================================================
+
+model SupplierQuotation {
+  id            String    @id @default(cuid())
+  productId     String
+  supplierName  String
+  quotedPrice   Decimal   @db.Decimal(12, 2)
+  quotationDate DateTime  @default(now())
+  validUntil    DateTime?
+  moq           Int?      @default(1)
+  leadTimeDays  Int?
+  notes         String?   @db.Text
+  createdById   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdBy AdminUser? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([supplierName])
+  @@index([quotedPrice])
+  @@index([quotationDate])
+  @@map("supplier_quotations")
 }
 
 // ==============================================================================

@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
       email: result.user.email,
       name: result.user.name,
       role: result.user.role,
+      isOwner: result.user.role === "OWNER" || result.user.role === "SUPER_ADMIN",
     },
     session: {
       id: result.session.id,

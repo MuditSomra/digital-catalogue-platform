@@ -43,7 +43,7 @@ export function calculateDiscountPercent(
 /**
  * Generates a unique slug for a product.
  */
-async function generateUniqueProductSlug(
+export async function generateUniqueProductSlug(
   baseName: string,
   modelNumber?: string | null,
   excludeId?: string
@@ -682,6 +682,24 @@ export async function createProduct(input: CreateProductInput) {
         })),
       });
     }
+
+    // Sync primary category in ProductCategory join table
+    await tx.productCategory.upsert({
+      where: {
+        productId_categoryId: {
+          productId: product.id,
+          categoryId: input.categoryId,
+        },
+      },
+      create: {
+        productId: product.id,
+        categoryId: input.categoryId,
+        isPrimary: true,
+      },
+      update: {
+        isPrimary: true,
+      },
+    });
 
     return product;
   });

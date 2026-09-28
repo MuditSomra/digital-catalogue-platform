@@ -481,3 +481,60 @@ export interface PaginatedCatalogueResponse {
   };
 }
 
+// ==============================================================================
+// PURCHASING & SUPPLIER QUOTATION TYPES
+// ==============================================================================
+
+export interface SupplierQuotationItem {
+  id: string;
+  productId: string;
+  supplierName: string;
+  quotedPrice: number;
+  quotationDate: string;
+  validUntil?: string | null;
+  moq?: number | null;
+  leadTimeDays?: number | null;
+  notes?: string | null;
+  createdById?: string | null;
+  createdByUser?: { name: string; email: string } | null;
+  isLowestPrice?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  product?: {
+    id: string;
+    name: string;
+    sku: string;
+    mrp: number;
+    sellingPrice: number | null;
+    brandName: string;
+    categoryName: string;
+  };
+}
+
+export interface ProductQuotationGroup {
+  product: {
+    id: string;
+    name: string;
+    slug: string;
+    sku: string;
+    modelNumber: string | null;
+    mrp: number;
+    sellingPrice: number | null;
+    privatePriceCode: string | null;
+    brand: { id: string; name: string };
+    category: { id: string; name: string; slug: string };
+    categories: { id: string; name: string; slug: string; isPrimary: boolean }[];
+    primaryImage: { url: string; altText: string | null } | null;
+    currentStock: number;
+  };
+  quotations: SupplierQuotationItem[];
+  lowestQuotedPrice: number | null;
+  lowestQuotationSupplier: string | null;
+  highestQuotedPrice: number | null;
+  averageQuotedPrice: number | null;
+  potentialMargin: number | null;
+  potentialMarginPercent: number | null;
+  bestMarginPercent?: number | null;
+}
+
+
