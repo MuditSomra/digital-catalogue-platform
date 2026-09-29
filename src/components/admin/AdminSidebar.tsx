@@ -100,15 +100,15 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
     ...baseNavItems.slice(0, 4),
     ...(isOwner
       ? [
-          {
-            name: "Purchasing",
-            href: "/admin/purchasing",
-            icon: Building2,
-            description: "Supplier Quotations & Comparison",
-            active: true,
-            badge: "Owner",
-          },
-        ]
+        {
+          name: "Purchasing",
+          href: "/admin/purchasing",
+          icon: Building2,
+          description: "Supplier Quotations & Comparison",
+          active: true,
+          badge: "Owner",
+        },
+      ]
       : []),
     ...baseNavItems.slice(4),
   ];
@@ -151,9 +151,8 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
 
       {/* Sidebar Content */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 w-72 bg-card border-r border-border flex flex-col transition-transform duration-200 lg:translate-x-0 ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed top-0 bottom-0 left-0 z-40 w-72 bg-card border-r border-border flex flex-col transition-transform duration-200 lg:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
       >
         {/* Brand Header */}
         <div className="p-5 border-b border-border flex items-center justify-between">
@@ -167,7 +166,7 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
             </div>
             <div>
               <div className="text-sm font-bold text-foreground tracking-tight">
-                Kitchen Appliances
+                Somra Home Products
               </div>
               <div className="text-xs text-muted-foreground">Retail Management</div>
             </div>
@@ -191,11 +190,10 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
                 key={item.name}
                 href={item.href}
                 onClick={onClose}
-                className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition group ${
-                  isCurrent
-                    ? "bg-primary/10 text-primary border border-primary/25 font-semibold shadow-xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
+                className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition group ${isCurrent
+                  ? "bg-primary/10 text-primary border border-primary/25 font-semibold shadow-xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <Icon className={`w-4 h-4 shrink-0 ${isCurrent ? "text-primary" : "text-muted-foreground group-hover:text-foreground"}`} />
@@ -206,11 +204,10 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
 
                 {item.badge && (
                   <span
-                    className={`text-[10px] font-medium px-2 py-0.5 rounded-md border ${
-                      isCurrent
-                        ? "bg-primary/15 text-primary border-primary/20"
-                        : "bg-muted text-muted-foreground border-border"
-                    }`}
+                    className={`text-[10px] font-medium px-2 py-0.5 rounded-md border ${isCurrent
+                      ? "bg-primary/15 text-primary border-primary/20"
+                      : "bg-muted text-muted-foreground border-border"
+                      }`}
                   >
                     {item.badge}
                   </span>

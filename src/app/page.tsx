@@ -52,7 +52,12 @@ function CustomerCatalogueContent() {
   const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState<number | undefined>(undefined);
   const [maxPrice, setMaxPrice] = useState<number | undefined>(undefined);
-  const [inStockOnly, setInStockOnly] = useState(false);
+  const [inStockOnly, setInStockOnly] = useState<boolean>(() => {
+    const param = searchParams.get("inStockOnly");
+    if (param === "false") return false;
+    if (param === "true") return true;
+    return true; // Default: checked / in-stock only for showroom visitors
+  });
   const [attributeFilters, setAttributeFilters] = useState<AttributeFilterParam[]>([]);
   const [sortBy, setSortBy] = useState<string>("featured");
   const [currentPage, setCurrentPage] = useState(1);
@@ -168,7 +173,7 @@ function CustomerCatalogueContent() {
     setSelectedBrandIds([]);
     setMinPrice(undefined);
     setMaxPrice(undefined);
-    setInStockOnly(false);
+    setInStockOnly(true);
     setAttributeFilters([]);
     setCurrentPage(1);
   };

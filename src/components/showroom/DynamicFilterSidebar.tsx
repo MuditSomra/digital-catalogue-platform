@@ -69,7 +69,7 @@ export function DynamicFilterSidebar({
     selectedBrandIds.length > 0 ||
     minPrice !== undefined ||
     maxPrice !== undefined ||
-    inStockOnly ||
+    !inStockOnly ||
     attributeFilters.length > 0;
 
   return (

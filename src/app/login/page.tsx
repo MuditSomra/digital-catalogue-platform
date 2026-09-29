@@ -24,7 +24,7 @@ function LoginFormContent() {
   const returnUrl = searchParams.get("returnUrl") || "/";
   const errorParam = searchParams.get("error");
 
-  const [email, setEmail] = useState("admin@kitchenshowroom.local");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [trustThisDevice, setTrustThisDevice] = useState(true);
@@ -97,7 +97,7 @@ function LoginFormContent() {
             <Store className="w-7 h-7" />
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-            Kitchen Appliance Showroom
+            Somra Home Products
           </h1>
           <p className="text-xs text-slate-400 font-medium">
             Owner Authentication & Shop Management
@@ -132,7 +132,7 @@ function LoginFormContent() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@kitchenshowroom.local"
+                placeholder="Email Address"
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-950/70 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition"
               />
             </div>
@@ -144,9 +144,7 @@ function LoginFormContent() {
               <label className="block text-xs font-semibold text-slate-300">
                 Password
               </label>
-              <span className="text-[10px] text-slate-500 font-mono">
-                Default: Admin@Showroom2026!
-              </span>
+
             </div>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />

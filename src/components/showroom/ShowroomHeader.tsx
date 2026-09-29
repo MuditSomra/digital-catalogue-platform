@@ -92,7 +92,7 @@ export function ShowroomHeader({
             </div>
             <div>
               <div className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight leading-tight">
-                Kitchen Appliance Showroom
+                Somra Home Products
               </div>
               <div className="text-[11px] font-medium text-slate-500 leading-tight">
                 Digital Catalogue & Live Inventory
