@@ -48,6 +48,7 @@ function CustomerCatalogueContent() {
 
   // Filter States
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState(searchParams.get("category") || "");
   const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState<number | undefined>(undefined);
@@ -62,20 +63,31 @@ function CustomerCatalogueContent() {
   const [sortBy, setSortBy] = useState<string>("featured");
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Active request tracking to cancel/ignore stale search responses
+  const activeRequestRef = React.useRef<number>(0);
+
   // Comparison State (max 3 products)
   const [comparedProducts, setComparedProducts] = useState<CatalogueProductItem[]>([]);
 
-  // 1. Fetch Categories & Brands initially
+  // 1. Debounce Search Input (350ms delay) to prevent hammering the server on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // 2. Fetch Lightweight Catalogue Categories & Brands on mount
   useEffect(() => {
     async function loadAuxData() {
       try {
         const [catsRes, brandsRes] = await Promise.all([
-          fetch("/api/admin/categories"),
-          fetch("/api/admin/brands"),
+          fetch("/api/catalogue/categories"),
+          fetch("/api/catalogue/brands"),
         ]);
         if (catsRes.ok) {
           const catsJson = await catsRes.json();
-          setCategories(catsJson.data?.tree || []);
+          setCategories(catsJson.data || []);
         }
         if (brandsRes.ok) {
           const brandsJson = await brandsRes.json();
@@ -88,8 +100,9 @@ function CustomerCatalogueContent() {
     loadAuxData();
   }, []);
 
-  // 2. Fetch Catalogue Products whenever filters change
+  // 3. Fetch Catalogue Products whenever debounced search or filters change
   const fetchProducts = useCallback(async () => {
+    const requestId = ++activeRequestRef.current;
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -97,7 +110,7 @@ function CustomerCatalogueContent() {
       params.set("limit", "12");
       params.set("sortBy", sortBy);
 
-      if (search.trim()) params.set("search", search.trim());
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
       if (selectedCategoryId) params.set("categoryId", selectedCategoryId);
       if (selectedBrandIds.length > 0) params.set("brandIds", selectedBrandIds.join(","));
       if (minPrice !== undefined) params.set("minPrice", String(minPrice));
@@ -110,6 +123,11 @@ function CustomerCatalogueContent() {
       const res = await fetch(`/api/catalogue/products?${params.toString()}`);
       const json = await res.json();
 
+      // Discard stale responses if a newer request has been triggered
+      if (requestId !== activeRequestRef.current) {
+        return;
+      }
+
       if (json.success && json.data) {
         setProducts(json.data.products);
         setPagination(json.data.pagination);
@@ -119,14 +137,18 @@ function CustomerCatalogueContent() {
         }
       }
     } catch (err) {
-      console.error("Failed to fetch catalogue products:", err);
+      if (requestId === activeRequestRef.current) {
+        console.error("Failed to fetch catalogue products:", err);
+      }
     } finally {
-      setLoading(false);
+      if (requestId === activeRequestRef.current) {
+        setLoading(false);
+      }
     }
   }, [
     currentPage,
     sortBy,
-    search,
+    debouncedSearch,
     selectedCategoryId,
     selectedBrandIds,
     minPrice,

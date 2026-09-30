@@ -15,6 +15,8 @@ import {
   ArrowRight,
   ShieldCheck,
 } from "lucide-react";
+import { getOptimizedImageUrl } from "@/lib/cloudinary-url";
+
 import type { CatalogueProductItem } from "@/types";
 
 interface ProductCardProps {
@@ -38,6 +40,16 @@ export function ProductCard({
   // Pick top 2-3 specifications to showcase as preview chips
   const highlightSpecs = product.attributeValues.slice(0, 3);
 
+  const optimizedImageUrl = product.primaryImage?.url
+    ? getOptimizedImageUrl(product.primaryImage.url, {
+        width: 500,
+        height: 375,
+        crop: "fill",
+        quality: "auto:good",
+        format: "auto",
+      })
+    : "";
+
   return (
     <div
       className={`group relative bg-white border rounded-2xl overflow-hidden transition duration-200 flex flex-col h-full ${
@@ -51,13 +63,14 @@ export function ProductCard({
         className="relative w-full aspect-[4/3] bg-slate-50/90 overflow-hidden border-b border-slate-100 shrink-0 select-none"
         style={{ aspectRatio: "4 / 3", width: "100%" }}
       >
-        {product.primaryImage && !imageError ? (
+        {optimizedImageUrl && !imageError ? (
           <img
-            src={product.primaryImage.url}
-            alt={product.primaryImage.altText || product.name}
+            src={optimizedImageUrl}
+            alt={product.primaryImage?.altText || product.name}
             onError={() => setImageError(true)}
             className="absolute inset-0 w-full h-full object-contain p-3 sm:p-4 group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
+            decoding="async"
           />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 gap-1.5 p-3">

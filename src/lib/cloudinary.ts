@@ -214,50 +214,7 @@ export async function deleteFromCloudinary(
   }
 }
 
-/**
- * Generates an optimized Cloudinary delivery URL with specified dimensions and quality.
- */
-export function getOptimizedImageUrl(
-  urlOrPublicId: string,
-  options: {
-    width?: number;
-    height?: number;
-    crop?: "fill" | "fit" | "limit" | "thumb" | "scale";
-    quality?: "auto" | "auto:good" | "auto:eco" | number;
-    format?: "auto" | "webp" | "avif" | "jpg";
-  } = {}
-): string {
-  if (!urlOrPublicId) return "";
+export { getOptimizedImageUrl } from "./cloudinary-url";
+export type { ImageOptimizationOptions } from "./cloudinary-url";
 
-  // If already full remote URL
-  if (urlOrPublicId.startsWith("http://") || urlOrPublicId.startsWith("https://")) {
-    if (!urlOrPublicId.includes("res.cloudinary.com")) {
-      return urlOrPublicId;
-    }
-  }
 
-  const {
-    width = 600,
-    height = 600,
-    crop = "fill",
-    quality = "auto",
-    format = "auto",
-  } = options;
-
-  if (isCloudinaryConfigured()) {
-    try {
-      const client = getCloudinaryClient();
-      return client.url(urlOrPublicId, {
-        transformation: [
-          { width, height, crop },
-          { quality, fetch_format: format },
-        ],
-        secure: true,
-      });
-    } catch {
-      return urlOrPublicId;
-    }
-  }
-
-  return urlOrPublicId;
-}

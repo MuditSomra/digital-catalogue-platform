@@ -131,6 +131,67 @@ export async function getCategoriesTree(): Promise<CategoryTreeNode[]> {
 }
 
 /**
+ * Retrieves lightweight active category tree for customer catalogue navigation.
+ */
+export async function getCatalogueCategoriesTree(): Promise<CategoryTreeNode[]> {
+  const activeCategories = await prisma.category.findMany({
+    where: { isActive: true },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      description: true,
+      parentId: true,
+      sortOrder: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+      _count: {
+        select: {
+          children: true,
+          products: true,
+        },
+      },
+    },
+  });
+
+  const categoryMap = new Map<string, CategoryTreeNode>();
+  const rootCategories: CategoryTreeNode[] = [];
+
+  for (const cat of activeCategories) {
+    categoryMap.set(cat.id, {
+      id: cat.id,
+      name: cat.name,
+      slug: cat.slug,
+      description: cat.description,
+      parentId: cat.parentId,
+      sortOrder: cat.sortOrder,
+      isActive: cat.isActive,
+      createdAt: cat.createdAt,
+      updatedAt: cat.updatedAt,
+      _count: {
+        children: cat._count.children,
+        products: cat._count.products,
+        attributes: 0,
+      },
+      children: [],
+    });
+  }
+
+  for (const cat of activeCategories) {
+    const node = categoryMap.get(cat.id)!;
+    if (cat.parentId && categoryMap.has(cat.parentId)) {
+      categoryMap.get(cat.parentId)!.children.push(node);
+    } else {
+      rootCategories.push(node);
+    }
+  }
+
+  return rootCategories;
+}
+
+/**
  * Retrieves a flat list of categories formatted for parent selection dropdowns.
  * Example label: "Kitchen Appliances > Cooking Appliances > Gas Stoves"
  */

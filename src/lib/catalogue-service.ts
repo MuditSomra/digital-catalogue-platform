@@ -35,8 +35,36 @@ export interface CatalogueQueryParams {
   limit?: number;
 }
 
+// In-memory cache for global price bounds to avoid expensive table-wide aggregates on every request
+let cachedPriceRange: { min: number; max: number; timestamp: number } | null = null;
+const PRICE_RANGE_CACHE_TTL = 60 * 1000; // 60 seconds
+
+export async function getCachedPriceRange(): Promise<{ min: number; max: number }> {
+  const now = Date.now();
+  if (cachedPriceRange && now - cachedPriceRange.timestamp < PRICE_RANGE_CACHE_TTL) {
+    return { min: cachedPriceRange.min, max: cachedPriceRange.max };
+  }
+
+  const priceAggregate = await prisma.product.aggregate({
+    where: { isActive: true },
+    _min: { mrp: true, sellingPrice: true },
+    _max: { mrp: true, sellingPrice: true },
+  });
+
+  const min = Math.floor(
+    Number(priceAggregate._min.sellingPrice || priceAggregate._min.mrp || 0)
+  );
+  const max = Math.ceil(
+    Number(priceAggregate._max.mrp || priceAggregate._max.sellingPrice || 100000)
+  );
+
+  cachedPriceRange = { min, max, timestamp: now };
+  return { min, max };
+}
+
 /**
  * Retrieves dynamic attribute filter definitions for a given category (and its ancestors).
+ * Uses in-memory hierarchy traversal to minimize database queries.
  */
 export async function getCategoryDynamicFilters(
   categoryId?: string | null
@@ -46,8 +74,31 @@ export async function getCategoryDynamicFilters(
     return [];
   }
 
-  // Gather category, descendants, and ancestors so all relevant filterable specifications are returned
-  const descendantIds = await getCategoryWithDescendantIds(categoryId);
+  // Fetch all categories once for fast parent/descendant resolution
+  const allCategories = await prisma.category.findMany({
+    select: { id: true, parentId: true },
+  });
+
+  const parentMap = new Map<string, string | null>(allCategories.map((c) => [c.id, c.parentId]));
+  const childMap = new Map<string, string[]>();
+  for (const cat of allCategories) {
+    if (cat.parentId) {
+      if (!childMap.has(cat.parentId)) childMap.set(cat.parentId, []);
+      childMap.get(cat.parentId)!.push(cat.id);
+    }
+  }
+
+  // Gather category and all its descendants
+  const descendantIds: string[] = [categoryId];
+  const queue: string[] = [categoryId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const children = childMap.get(current) || [];
+    for (const child of children) {
+      descendantIds.push(child);
+      queue.push(child);
+    }
+  }
 
   // Walk up ancestor path to gather inherited and direct attributes
   const ancestorIds: string[] = [];
@@ -57,11 +108,7 @@ export async function getCategoryDynamicFilters(
   while (currId && !visited.has(currId)) {
     visited.add(currId);
     ancestorIds.push(currId);
-    const cat: { parentId: string | null } | null = await prisma.category.findUnique({
-      where: { id: currId },
-      select: { parentId: true },
-    });
-    currId = cat?.parentId || null;
+    currId = parentMap.get(currId) || null;
   }
 
   const categoryIdsToInclude = Array.from(new Set([...ancestorIds, ...descendantIds]));
@@ -98,6 +145,9 @@ export async function getCategoryDynamicFilters(
  * Main query function for Customer Showroom Catalogue.
  * Performs server-side multi-attribute filtering (OR within attribute, AND across attributes),
  * category hierarchy traversal, price bounds, sorting, and pagination.
+ *
+ * Performance-optimized: selects only lightweight card fields, fetches primary image only,
+ * and skips video/heavy relational overhead for list rendering.
  */
 export async function getCatalogueProducts(
   params: CatalogueQueryParams = {}
@@ -253,15 +303,31 @@ export async function getCatalogueProducts(
       break;
   }
 
-  // 9. Execute queries in parallel
-  const [totalCount, rawProducts, availableFilters, priceAggregate] = await Promise.all([
+  // 9. Execute queries in parallel with lightweight selection
+  const [totalCount, rawProducts, availableFilters, priceRange] = await Promise.all([
     prisma.product.count({ where }),
     prisma.product.findMany({
       where,
       skip,
       take: limit,
       orderBy,
-      include: {
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        sku: true,
+        modelNumber: true,
+        description: true,
+        brandId: true,
+        categoryId: true,
+        mrp: true,
+        sellingPrice: true,
+        privatePriceCode: true,
+        warranty: true,
+        isFeatured: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
         brand: {
           select: { id: true, name: true, slug: true, logoUrl: true },
         },
@@ -272,13 +338,28 @@ export async function getCatalogueProducts(
           select: { id: true, quantity: true, lowStockThreshold: true },
         },
         images: {
-          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        },
-        videos: {
-          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          orderBy: [{ isPrimary: Prisma.SortOrder.desc }, { sortOrder: Prisma.SortOrder.asc }, { createdAt: Prisma.SortOrder.asc }],
+          take: 1,
+          select: {
+            id: true,
+            productId: true,
+            url: true,
+            publicId: true,
+            altText: true,
+            sortOrder: true,
+            isPrimary: true,
+            createdAt: true,
+            updatedAt: true,
+          },
         },
         attributeValues: {
-          include: {
+          take: 4,
+          select: {
+            id: true,
+            attributeId: true,
+            value: true,
+            numericValue: true,
+            booleanValue: true,
             attribute: {
               select: {
                 id: true,
@@ -293,14 +374,10 @@ export async function getCatalogueProducts(
       },
     }),
     getCategoryDynamicFilters(categoryId),
-    prisma.product.aggregate({
-      where: { isActive: true },
-      _min: { mrp: true, sellingPrice: true },
-      _max: { mrp: true, sellingPrice: true },
-    }),
+    getCachedPriceRange(),
   ]);
 
-  // Format products
+  // Format products for catalogue list
   const products: CatalogueProductItem[] = rawProducts.map((p) => {
     const mrp = Number(p.mrp);
     const sellingPrice = p.sellingPrice != null ? Number(p.sellingPrice) : null;
@@ -323,29 +400,6 @@ export async function getCatalogueProducts(
       createdAt: img.createdAt,
       updatedAt: img.updatedAt,
     }));
-
-    const formattedVideos: ProductVideoItem[] = p.videos.map((vid) => {
-      let youtubeVideoId: string | null = null;
-      if (vid.videoType === "YOUTUBE") {
-        const match = vid.url.match(
-          /(?:youtube(?:-nocookie)?\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i
-        );
-        youtubeVideoId = match ? match[1] : null;
-      }
-      return {
-        id: vid.id,
-        productId: vid.productId,
-        videoType: vid.videoType,
-        url: vid.url,
-        title: vid.title,
-        sortOrder: vid.sortOrder,
-        createdAt: vid.createdAt,
-        youtubeVideoId,
-        thumbnailUrl: youtubeVideoId
-          ? `https://img.youtube.com/vi/${youtubeVideoId}/hqdefault.jpg`
-          : undefined,
-      };
-    });
 
     return {
       id: p.id,
@@ -374,7 +428,7 @@ export async function getCatalogueProducts(
       },
       primaryImage,
       images: formattedImages,
-      videos: formattedVideos,
+      videos: [], // videos are not needed on product list cards
       attributeValues: p.attributeValues.map((av) => ({
         id: av.id,
         attributeId: av.attributeId,
@@ -391,13 +445,6 @@ export async function getCatalogueProducts(
 
   const totalPages = Math.ceil(totalCount / limit) || 1;
 
-  const minBound = Math.floor(
-    Number(priceAggregate._min.sellingPrice || priceAggregate._min.mrp || 0)
-  );
-  const maxBound = Math.ceil(
-    Number(priceAggregate._max.mrp || priceAggregate._max.sellingPrice || 100000)
-  );
-
   return {
     products,
     pagination: {
@@ -409,15 +456,13 @@ export async function getCatalogueProducts(
       hasPrevPage: page > 1,
     },
     availableFilters,
-    priceRange: {
-      min: minBound,
-      max: maxBound,
-    },
+    priceRange,
   };
 }
 
 /**
  * Retrieves full detail for a single product in Customer Showroom.
+ * Fetches all images, all videos, full specifications, breadcrumbs, and similar products.
  */
 export async function getCatalogueProductDetail(
   idOrSlug: string
@@ -467,17 +512,19 @@ export async function getCatalogueProductDetail(
 
   if (!product) return null;
 
-  // Build breadcrumbs
+  // Build breadcrumbs in memory
+  const allCategories = await prisma.category.findMany({
+    select: { id: true, name: true, slug: true, parentId: true },
+  });
+  const catMap = new Map(allCategories.map((c) => [c.id, c]));
+
   const breadcrumbs: CategoryBreadcrumb[] = [];
   let currentParentId = product.category.parentId;
   const visited = new Set<string>();
 
   while (currentParentId && !visited.has(currentParentId)) {
     visited.add(currentParentId);
-    const parent = await prisma.category.findUnique({
-      where: { id: currentParentId },
-      select: { id: true, name: true, slug: true, parentId: true },
-    });
+    const parent = catMap.get(currentParentId);
     if (parent) {
       breadcrumbs.unshift({ id: parent.id, name: parent.name, slug: parent.slug });
       currentParentId = parent.parentId;
@@ -587,6 +634,8 @@ export async function getCatalogueProductDetail(
  * 1. Same subcategory first (excluding current product).
  * 2. Same parent category if needed to reach target limit (4-8 products).
  * 3. Excludes current product and avoids duplicates.
+ *
+ * Performance-optimized: selects lightweight card fields and primary images only.
  */
 export async function getSimilarProducts(
   productId: string,
@@ -606,6 +655,56 @@ export async function getSimilarProducts(
   const foundProductIds = new Set<string>([productId]);
   const rawSimilarList: any[] = [];
 
+  const similarSelect = {
+    id: true,
+    name: true,
+    slug: true,
+    sku: true,
+    modelNumber: true,
+    description: true,
+    brandId: true,
+    categoryId: true,
+    mrp: true,
+    sellingPrice: true,
+    privatePriceCode: true,
+    warranty: true,
+    isFeatured: true,
+    isActive: true,
+    createdAt: true,
+    updatedAt: true,
+    brand: { select: { id: true, name: true, slug: true, logoUrl: true } },
+    category: { select: { id: true, name: true, slug: true, parentId: true } },
+    inventory: { select: { id: true, quantity: true, lowStockThreshold: true } },
+    images: {
+      orderBy: [{ isPrimary: Prisma.SortOrder.desc }, { sortOrder: Prisma.SortOrder.asc }, { createdAt: Prisma.SortOrder.asc }],
+      take: 1,
+      select: {
+        id: true,
+        productId: true,
+        url: true,
+        publicId: true,
+        altText: true,
+        sortOrder: true,
+        isPrimary: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    },
+    attributeValues: {
+      take: 4,
+      select: {
+        id: true,
+        attributeId: true,
+        value: true,
+        numericValue: true,
+        booleanValue: true,
+        attribute: {
+          select: { id: true, name: true, slug: true, type: true, unit: true },
+        },
+      },
+    },
+  };
+
   // 1. Same subcategory products
   const sameCategoryProducts = await prisma.product.findMany({
     where: {
@@ -615,20 +714,7 @@ export async function getSimilarProducts(
     },
     take: limit,
     orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
-    include: {
-      brand: { select: { id: true, name: true, slug: true, logoUrl: true } },
-      category: { select: { id: true, name: true, slug: true, parentId: true } },
-      inventory: { select: { id: true, quantity: true, lowStockThreshold: true } },
-      images: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
-      videos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
-      attributeValues: {
-        include: {
-          attribute: {
-            select: { id: true, name: true, slug: true, type: true, unit: true },
-          },
-        },
-      },
-    },
+    select: similarSelect,
   });
 
   for (const p of sameCategoryProducts) {
@@ -651,20 +737,7 @@ export async function getSimilarProducts(
       },
       take: remainingCount,
       orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
-      include: {
-        brand: { select: { id: true, name: true, slug: true, logoUrl: true } },
-        category: { select: { id: true, name: true, slug: true, parentId: true } },
-        inventory: { select: { id: true, quantity: true, lowStockThreshold: true } },
-        images: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
-        videos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
-        attributeValues: {
-          include: {
-            attribute: {
-              select: { id: true, name: true, slug: true, type: true, unit: true },
-            },
-          },
-        },
-      },
+      select: similarSelect,
     });
 
     for (const p of siblingCategoryProducts) {
@@ -723,15 +796,7 @@ export async function getSimilarProducts(
         createdAt: img.createdAt,
         updatedAt: img.updatedAt,
       })),
-      videos: p.videos.map((vid: any) => ({
-        id: vid.id,
-        productId: vid.productId,
-        videoType: vid.videoType,
-        url: vid.url,
-        title: vid.title,
-        sortOrder: vid.sortOrder,
-        createdAt: vid.createdAt,
-      })),
+      videos: [],
       attributeValues: p.attributeValues.map((av: any) => ({
         id: av.id,
         attributeId: av.attributeId,
