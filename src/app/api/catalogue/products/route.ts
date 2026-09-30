@@ -5,9 +5,7 @@ import { handleApiSuccess, handleApiError } from "@/lib/api-response";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const t0 = performance.now();
   try {
-    const tParse0 = performance.now();
     const searchParams = request.nextUrl.searchParams;
 
     const search = searchParams.get("search") || undefined;
@@ -32,9 +30,7 @@ export async function GET(request: NextRequest) {
         attributeFilters = [];
       }
     }
-    const tParse = performance.now() - tParse0;
 
-    const tService0 = performance.now();
     const result = await getCatalogueProducts({
       search,
       categoryId,
@@ -48,18 +44,8 @@ export async function GET(request: NextRequest) {
       page,
       limit,
     });
-    const tService = performance.now() - tService0;
 
-    const tResp0 = performance.now();
-    const response = handleApiSuccess(result);
-    const tResp = performance.now() - tResp0;
-    const tTotal = performance.now() - t0;
-
-    console.log(
-      `[PERF][api/catalogue/products] parse=${tParse.toFixed(1)}ms service=${tService.toFixed(1)}ms responseBuild=${tResp.toFixed(1)}ms total=${tTotal.toFixed(1)}ms`
-    );
-
-    return response;
+    return handleApiSuccess(result);
   } catch (error) {
     return handleApiError(error);
   }

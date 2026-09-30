@@ -244,19 +244,14 @@ export async function authenticateAdmin(options: {
   ipAddress?: string;
   existingDeviceToken?: string;
 }): Promise<AuthenticateResult> {
-  const t0 = performance.now();
   const { email, password, trustThisDevice = false, deviceName, userAgent, ipAddress, existingDeviceToken } = options;
   const normalizedEmail = email.toLowerCase().trim();
 
   // 1. Ensure admin user exists in DB
-  const tAdmin0 = performance.now();
   await ensureAdminUserExists();
-  const tAdmin = performance.now() - tAdmin0;
 
   // 2. Check brute force rate limit
-  const tRate0 = performance.now();
   const rateLimitStatus = await checkLoginRateLimit(normalizedEmail);
-  const tRate = performance.now() - tRate0;
   if (rateLimitStatus.isLocked) {
     throw new AuthError(
       `Too many failed login attempts. Verification locked for approximately ${rateLimitStatus.remainingMinutes} more minute(s).`,
@@ -266,11 +261,9 @@ export async function authenticateAdmin(options: {
   }
 
   // 3. Find user
-  const tUser0 = performance.now();
   const user = await prisma.adminUser.findUnique({
     where: { email: normalizedEmail },
   });
-  const tUser = performance.now() - tUser0;
 
   if (!user || !user.isActive || !user.passwordHash) {
     await recordFailedLoginAttempt(normalizedEmail);
@@ -278,9 +271,7 @@ export async function authenticateAdmin(options: {
   }
 
   // 4. Verify password
-  const tPass0 = performance.now();
   const isPasswordValid = verifyPassword(password, user.passwordHash);
-  const tPass = performance.now() - tPass0;
   if (!isPasswordValid) {
     const failedStatus = await recordFailedLoginAttempt(normalizedEmail);
     if (failedStatus.isLocked) {
@@ -299,12 +290,9 @@ export async function authenticateAdmin(options: {
   }
 
   // 5. Successful password - reset rate limit
-  const tReset0 = performance.now();
   await resetLoginAttempts(normalizedEmail);
-  const tReset = performance.now() - tReset0;
 
   // 6. Handle Trusted Device Registration if requested
-  const tTrust0 = performance.now();
   let trustedDeviceRecord: TrustedDevice | null = null;
   let deviceTokenToReturn: string | undefined = undefined;
 
@@ -343,10 +331,8 @@ export async function authenticateAdmin(options: {
       });
     }
   }
-  const tTrust = performance.now() - tTrust0;
 
   // 7. Create Session
-  const tSess0 = performance.now();
   const isTrusted = Boolean(trustThisDevice && trustedDeviceRecord);
   const sessionToken = generateSecureToken();
   const sessionTokenHash = hashToken(sessionToken);
@@ -375,12 +361,6 @@ export async function authenticateAdmin(options: {
       isRevoked: false,
     },
   });
-  const tSess = performance.now() - tSess0;
-  const tTotal = performance.now() - t0;
-
-  console.log(
-    `[PERF][auth-service/authenticateAdmin] adminEnsure=${tAdmin.toFixed(1)}ms rateLimit=${tRate.toFixed(1)}ms userLookup=${tUser.toFixed(1)}ms passwordVerification=${tPass.toFixed(1)}ms resetRateLimit=${tReset.toFixed(1)}ms trustedDevice=${tTrust.toFixed(1)}ms sessionWrite=${tSess.toFixed(1)}ms total=${tTotal.toFixed(1)}ms`
-  );
 
   return {
     user,
@@ -420,7 +400,6 @@ export type SessionValidationResult = SessionValidationSuccess | SessionValidati
  * 5. Updates lastActiveAt (throttled to once per minute)
  */
 export async function validateSession(rawSessionToken: string | undefined | null): Promise<SessionValidationResult> {
-  const t0 = performance.now();
   if (!rawSessionToken || typeof rawSessionToken !== "string" || rawSessionToken.trim().length === 0) {
     return {
       isValid: false,
@@ -429,11 +408,8 @@ export async function validateSession(rawSessionToken: string | undefined | null
     };
   }
 
-  const tHash0 = performance.now();
   const tokenHash = hashToken(rawSessionToken.trim());
-  const tHash = performance.now() - tHash0;
 
-  const tDb0 = performance.now();
   const session = await prisma.session.findUnique({
     where: { sessionTokenHash: tokenHash },
     include: {
@@ -441,12 +417,6 @@ export async function validateSession(rawSessionToken: string | undefined | null
       trustedDevice: true,
     },
   });
-  const tDb = performance.now() - tDb0;
-  const tTotal = performance.now() - t0;
-
-  console.log(
-    `[PERF][auth-service/validateSession] hash=${tHash.toFixed(1)}ms dbLookup=${tDb.toFixed(1)}ms total=${tTotal.toFixed(1)}ms`
-  );
 
   if (!session) {
     return {

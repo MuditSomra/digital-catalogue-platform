@@ -14,18 +14,12 @@ const loginSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const t0 = performance.now();
   try {
-    const tVal0 = performance.now();
     const body = await request.json();
     const { email, password, trustThisDevice, deviceName } = loginSchema.parse(body);
-    const tVal = performance.now() - tVal0;
 
-    const tMeta0 = performance.now();
     const { ipAddress, userAgent, deviceToken } = await getClientMetadata();
-    const tMeta = performance.now() - tMeta0;
 
-    const tAuth0 = performance.now();
     const authResult = await authenticateAdmin({
       email,
       password,
@@ -35,18 +29,14 @@ export async function POST(request: NextRequest) {
       ipAddress,
       existingDeviceToken: deviceToken,
     });
-    const tAuth = performance.now() - tAuth0;
 
     // Set secure HTTP-only cookies
-    const tCookie0 = performance.now();
     await setSessionCookies({
       sessionToken: authResult.sessionToken,
       isTrustedDevice: authResult.isTrustedDevice,
       deviceToken: authResult.deviceToken,
     });
-    const tCookie = performance.now() - tCookie0;
 
-    const tResp0 = performance.now();
     const response = handleApiSuccess({
       user: {
         id: authResult.user.id,
@@ -61,12 +51,6 @@ export async function POST(request: NextRequest) {
         ? "Logged in securely as Main Shop Device (90-day persistent session)."
         : "Logged in securely (8-hour standard session).",
     });
-    const tResp = performance.now() - tResp0;
-    const tTotal = performance.now() - t0;
-
-    console.log(
-      `[PERF][auth/login] validation=${tVal.toFixed(1)}ms metadata=${tMeta.toFixed(1)}ms authService=${tAuth.toFixed(1)}ms cookies=${tCookie.toFixed(1)}ms response=${tResp.toFixed(1)}ms total=${tTotal.toFixed(1)}ms`
-    );
 
     return response;
   } catch (error) {
