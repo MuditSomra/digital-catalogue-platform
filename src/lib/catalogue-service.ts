@@ -171,9 +171,14 @@ export async function getCatalogueProducts(
   // Base Where Condition: only active products in customer catalogue
   const andConditions: Prisma.ProductWhereInput[] = [{ isActive: true }];
 
+  const tTotalStart = performance.now();
+
   // 1. Category hierarchy filter (selected category + all descendant subcategories)
+  let tCategoryResolution = 0;
   if (categoryId && categoryId !== "all") {
+    const tCat0 = performance.now();
     const categoryIds = await getCategoryWithDescendantIds(categoryId);
+    tCategoryResolution = performance.now() - tCat0;
     andConditions.push({ categoryId: { in: categoryIds } });
   }
 
@@ -303,79 +308,106 @@ export async function getCatalogueProducts(
       break;
   }
 
-  // 9. Execute queries in parallel with lightweight selection
+  // 9. Execute queries with granular timing
+  let tCount = 0;
+  let tProducts = 0;
+  let tFilters = 0;
+  let tPriceRange = 0;
+
   const [totalCount, rawProducts, availableFilters, priceRange] = await Promise.all([
-    prisma.product.count({ where }),
-    prisma.product.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy,
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        sku: true,
-        modelNumber: true,
-        description: true,
-        brandId: true,
-        categoryId: true,
-        mrp: true,
-        sellingPrice: true,
-        privatePriceCode: true,
-        warranty: true,
-        isFeatured: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-        brand: {
-          select: { id: true, name: true, slug: true, logoUrl: true },
-        },
-        category: {
-          select: { id: true, name: true, slug: true, parentId: true },
-        },
-        inventory: {
-          select: { id: true, quantity: true, lowStockThreshold: true },
-        },
-        images: {
-          orderBy: [{ isPrimary: Prisma.SortOrder.desc }, { sortOrder: Prisma.SortOrder.asc }, { createdAt: Prisma.SortOrder.asc }],
-          take: 1,
-          select: {
-            id: true,
-            productId: true,
-            url: true,
-            publicId: true,
-            altText: true,
-            sortOrder: true,
-            isPrimary: true,
-            createdAt: true,
-            updatedAt: true,
+    (async () => {
+      const t = performance.now();
+      const res = await prisma.product.count({ where });
+      tCount = performance.now() - t;
+      return res;
+    })(),
+    (async () => {
+      const t = performance.now();
+      const res = await prisma.product.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          sku: true,
+          modelNumber: true,
+          description: true,
+          brandId: true,
+          categoryId: true,
+          mrp: true,
+          sellingPrice: true,
+          privatePriceCode: true,
+          warranty: true,
+          isFeatured: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          brand: {
+            select: { id: true, name: true, slug: true, logoUrl: true },
           },
-        },
-        attributeValues: {
-          take: 4,
-          select: {
-            id: true,
-            attributeId: true,
-            value: true,
-            numericValue: true,
-            booleanValue: true,
-            attribute: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                type: true,
-                unit: true,
+          category: {
+            select: { id: true, name: true, slug: true, parentId: true },
+          },
+          inventory: {
+            select: { id: true, quantity: true, lowStockThreshold: true },
+          },
+          images: {
+            orderBy: [{ isPrimary: Prisma.SortOrder.desc }, { sortOrder: Prisma.SortOrder.asc }, { createdAt: Prisma.SortOrder.asc }],
+            take: 1,
+            select: {
+              id: true,
+              productId: true,
+              url: true,
+              publicId: true,
+              altText: true,
+              sortOrder: true,
+              isPrimary: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
+          attributeValues: {
+            take: 4,
+            select: {
+              id: true,
+              attributeId: true,
+              value: true,
+              numericValue: true,
+              booleanValue: true,
+              attribute: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  type: true,
+                  unit: true,
+                },
               },
             },
           },
         },
-      },
-    }),
-    getCategoryDynamicFilters(categoryId),
-    getCachedPriceRange(),
+      });
+      tProducts = performance.now() - t;
+      return res;
+    })(),
+    (async () => {
+      const t = performance.now();
+      const res = await getCategoryDynamicFilters(categoryId);
+      tFilters = performance.now() - t;
+      return res;
+    })(),
+    (async () => {
+      const t = performance.now();
+      const res = await getCachedPriceRange();
+      tPriceRange = performance.now() - t;
+      return res;
+    })(),
   ]);
+
+  const tBuild0 = performance.now();
 
   // Format products for catalogue list
   const products: CatalogueProductItem[] = rawProducts.map((p) => {
@@ -444,6 +476,12 @@ export async function getCatalogueProducts(
   });
 
   const totalPages = Math.ceil(totalCount / limit) || 1;
+  const tBuild = performance.now() - tBuild0;
+  const tTotal = performance.now() - tTotalStart;
+
+  console.log(
+    `[PERF][catalogue/products] categoryResolution=${tCategoryResolution.toFixed(1)}ms count=${tCount.toFixed(1)}ms products=${tProducts.toFixed(1)}ms priceRange=${tPriceRange.toFixed(1)}ms filters=${tFilters.toFixed(1)}ms responseBuild=${tBuild.toFixed(1)}ms total=${tTotal.toFixed(1)}ms`
+  );
 
   return {
     products,

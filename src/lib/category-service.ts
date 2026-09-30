@@ -134,6 +134,7 @@ export async function getCategoriesTree(): Promise<CategoryTreeNode[]> {
  * Retrieves lightweight active category tree for customer catalogue navigation.
  */
 export async function getCatalogueCategoriesTree(): Promise<CategoryTreeNode[]> {
+  const t0 = performance.now();
   const activeCategories = await prisma.category.findMany({
     where: { isActive: true },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -155,7 +156,9 @@ export async function getCatalogueCategoriesTree(): Promise<CategoryTreeNode[]> 
       },
     },
   });
+  const tDb = performance.now() - t0;
 
+  const tTree0 = performance.now();
   const categoryMap = new Map<string, CategoryTreeNode>();
   const rootCategories: CategoryTreeNode[] = [];
 
@@ -187,6 +190,11 @@ export async function getCatalogueCategoriesTree(): Promise<CategoryTreeNode[]> 
       rootCategories.push(node);
     }
   }
+
+  const tTree = performance.now() - tTree0;
+  console.log(
+    `[PERF][category-service/getCatalogueCategoriesTree] db=${tDb.toFixed(1)}ms treeBuild=${tTree.toFixed(1)}ms`
+  );
 
   return rootCategories;
 }
