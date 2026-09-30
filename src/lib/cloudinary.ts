@@ -214,7 +214,7 @@ export async function deleteFromCloudinary(
   }
 }
 
-export { getOptimizedImageUrl } from "./cloudinary-url";
+export { getOptimizedImageUrl, IMAGE_PROFILES } from "./cloudinary-url";
 export type { ImageOptimizationOptions } from "./cloudinary-url";
 
 

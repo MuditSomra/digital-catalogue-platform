@@ -13,6 +13,34 @@ export interface ImageOptimizationOptions {
 }
 
 /**
+ * Centralized image delivery optimization profiles.
+ * Preserves full product silhouettes using fit/limit crops without aggressive clipping.
+ */
+export const IMAGE_PROFILES = {
+  thumbnail: {
+    width: 160,
+    height: 160,
+    crop: "fit",
+    quality: "auto:good",
+    format: "auto",
+  },
+  detail: {
+    width: 800,
+    height: 600,
+    crop: "fit",
+    quality: "auto:good",
+    format: "auto",
+  },
+  presentation: {
+    width: 1400,
+    height: 1050,
+    crop: "limit",
+    quality: "auto:best",
+    format: "auto",
+  },
+} as const satisfies Record<string, ImageOptimizationOptions>;
+
+/**
  * Generates an optimized Cloudinary delivery URL with specified dimensions and quality.
  * Transforms remote Cloudinary URLs or public IDs on the fly.
  */

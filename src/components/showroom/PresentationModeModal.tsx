@@ -9,6 +9,7 @@ import {
   Minimize2,
   Package,
 } from "lucide-react";
+import { getOptimizedImageUrl, IMAGE_PROFILES } from "@/lib/cloudinary-url";
 import type { CatalogueProductItem } from "@/types";
 
 interface PresentationModeModalProps {
@@ -232,7 +233,7 @@ export function PresentationModeModal({
           <div className="w-full h-full flex items-center justify-center">
             <img
               key={currentMedia.id}
-              src={currentMedia.url}
+              src={getOptimizedImageUrl(currentMedia.url, IMAGE_PROFILES.presentation)}
               alt={currentMedia.altText || product.name}
               className="max-h-[88vh] max-w-[94vw] object-contain drop-shadow-2xl transition-all duration-200"
             />

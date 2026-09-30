@@ -35,6 +35,7 @@ import {
   Package,
 } from "lucide-react";
 import { CascadingCategorySelect } from "@/components/ui/CascadingCategorySelect";
+import { getOptimizedImageUrl, IMAGE_PROFILES } from "@/lib/cloudinary-url";
 import type {
   ProductQuotationGroup,
   SupplierQuotationItem,
@@ -382,7 +383,7 @@ export function PurchasingComparisonView({
                     >
                       {primaryImg?.url ? (
                         <img
-                          src={primaryImg.url}
+                          src={getOptimizedImageUrl(primaryImg.url, IMAGE_PROFILES.thumbnail)}
                           alt={primaryImg.altText || group.product.name}
                           className="w-full h-full object-contain p-1 group-hover/thumb:scale-105 transition-transform duration-200"
                         />
@@ -765,7 +766,10 @@ export function PurchasingComparisonView({
               {galleryProduct.images && galleryProduct.images.length > 0 ? (
                 <>
                   <img
-                    src={galleryProduct.images[galleryActiveIndex]?.url || galleryProduct.primaryImage?.url || ""}
+                    src={getOptimizedImageUrl(
+                      galleryProduct.images[galleryActiveIndex]?.url || galleryProduct.primaryImage?.url || "",
+                      IMAGE_PROFILES.detail
+                    )}
                     alt={galleryProduct.images[galleryActiveIndex]?.altText || galleryProduct.name}
                     className="max-h-[50vh] w-auto max-w-full object-contain rounded-lg shadow-sm"
                   />
@@ -822,7 +826,11 @@ export function PurchasingComparisonView({
                         : "border-border hover:border-muted-foreground/50 opacity-70 hover:opacity-100"
                     }`}
                   >
-                    <img src={img.url} alt={img.altText || ""} className="w-full h-full object-contain" />
+                    <img
+                      src={getOptimizedImageUrl(img.url, IMAGE_PROFILES.thumbnail)}
+                      alt={img.altText || ""}
+                      className="w-full h-full object-contain"
+                    />
                   </button>
                 ))}
               </div>

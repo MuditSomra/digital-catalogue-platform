@@ -32,6 +32,7 @@ import type {
 } from "@/types";
 import { VideoType } from "@prisma/client";
 import { extractYouTubeVideoId } from "@/validations/media";
+import { getOptimizedImageUrl, IMAGE_PROFILES } from "@/lib/cloudinary-url";
 
 interface QueuedImage {
   id: string;
@@ -749,7 +750,7 @@ export function ProductMediaManager({
               <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0 overflow-hidden">
                 {images.length > 0 ? (
                   <img
-                    src={images.find((i) => i.isPrimary)?.url || images[0].url}
+                    src={getOptimizedImageUrl(images.find((i) => i.isPrimary)?.url || images[0].url, IMAGE_PROFILES.thumbnail)}
                     alt={activeProductName}
                     className="w-full h-full object-cover"
                   />
@@ -850,7 +851,7 @@ export function ProductMediaManager({
                       <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden text-muted-foreground">
                         {thumb ? (
                           <img
-                            src={thumb}
+                            src={getOptimizedImageUrl(thumb, IMAGE_PROFILES.thumbnail)}
                             alt={p.name}
                             className="w-full h-full object-cover"
                           />
@@ -1118,7 +1119,7 @@ export function ProductMediaManager({
                           {/* Image Thumbnail Container */}
                           <div className="relative aspect-square w-full bg-muted/30 overflow-hidden">
                             <img
-                              src={img.url}
+                              src={getOptimizedImageUrl(img.url, IMAGE_PROFILES.thumbnail)}
                               alt={img.altText || activeProductName}
                               className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
                               loading="lazy"
@@ -1661,7 +1662,7 @@ export function ProductMediaManager({
         >
           <div className="relative max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl">
             <img
-              src={previewImage}
+              src={getOptimizedImageUrl(previewImage, IMAGE_PROFILES.detail)}
               alt="Enlarged preview"
               className="w-full h-full object-contain max-h-[85vh] rounded-2xl"
             />

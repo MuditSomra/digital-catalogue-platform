@@ -33,6 +33,7 @@ import { ShowroomHeader } from "@/components/showroom/ShowroomHeader";
 import { ProductCard } from "@/components/showroom/ProductCard";
 import { PresentationModeModal } from "@/components/showroom/PresentationModeModal";
 import { MarkAsSoldModal } from "@/components/showroom/MarkAsSoldModal";
+import { getOptimizedImageUrl, IMAGE_PROFILES } from "@/lib/cloudinary-url";
 import type { CatalogueProductItem } from "@/types";
 
 export default function ProductDetailPage({
@@ -270,7 +271,7 @@ export default function ProductDetailPage({
                 activeImage ? (
                   <img
                     key={activeImage.id || selectedImageIndex}
-                    src={activeImage.url}
+                    src={getOptimizedImageUrl(activeImage.url, IMAGE_PROFILES.detail)}
                     alt={activeImage.altText || product.name}
                     className="absolute inset-0 w-full h-full object-contain p-4 sm:p-6 drop-shadow-sm transition-all duration-300"
                   />
@@ -360,7 +361,11 @@ export default function ProductDetailPage({
                         : "border-slate-200 hover:border-slate-300 opacity-75 hover:opacity-100"
                     }`}
                   >
-                    <img src={img.url} alt="thumb" className="w-full h-full object-contain" />
+                    <img
+                      src={getOptimizedImageUrl(img.url, IMAGE_PROFILES.thumbnail)}
+                      alt="thumb"
+                      className="w-full h-full object-contain"
+                    />
                   </button>
                 ))}
 
@@ -719,7 +724,7 @@ export default function ProductDetailPage({
                         title="Click to view as main image"
                       >
                         <img
-                          src={img.url}
+                          src={getOptimizedImageUrl(img.url, IMAGE_PROFILES.detail)}
                           alt={img.altText || `Gallery image ${idx + 1}`}
                           className="w-full h-full object-contain group-hover:scale-105 transition-transform"
                         />

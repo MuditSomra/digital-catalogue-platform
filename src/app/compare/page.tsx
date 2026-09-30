@@ -19,6 +19,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ShowroomHeader } from "@/components/showroom/ShowroomHeader";
+import { getOptimizedImageUrl, IMAGE_PROFILES } from "@/lib/cloudinary-url";
 import type { CatalogueProductItem } from "@/types";
 
 function ProductComparisonContent() {
@@ -235,7 +236,7 @@ function ProductComparisonContent() {
                           >
                             {p.primaryImage ? (
                               <img
-                                src={p.primaryImage.url}
+                                src={getOptimizedImageUrl(p.primaryImage.url, IMAGE_PROFILES.detail)}
                                 alt={p.name}
                                 className="absolute inset-0 w-full h-full object-contain p-2"
                               />
@@ -463,7 +464,7 @@ function ProductComparisonContent() {
                     <div className="flex items-center gap-3">
                       {item.primaryImage ? (
                         <img
-                          src={item.primaryImage.url}
+                          src={getOptimizedImageUrl(item.primaryImage.url, IMAGE_PROFILES.thumbnail)}
                           alt={item.name}
                           className="w-10 h-10 object-contain rounded bg-white p-1 border border-slate-200"
                         />

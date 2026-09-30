@@ -11,6 +11,7 @@ import {
   Minus,
   Plus,
 } from "lucide-react";
+import { getOptimizedImageUrl, IMAGE_PROFILES } from "@/lib/cloudinary-url";
 import type { CatalogueProductItem } from "@/types";
 
 interface MarkAsSoldModalProps {
@@ -117,7 +118,7 @@ export function MarkAsSoldModal({
         <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
           {product.primaryImage ? (
             <img
-              src={product.primaryImage.url}
+              src={getOptimizedImageUrl(product.primaryImage.url, IMAGE_PROFILES.thumbnail)}
               alt={product.name}
               className="w-12 h-12 object-contain bg-white rounded-lg p-1 border border-slate-200"
             />

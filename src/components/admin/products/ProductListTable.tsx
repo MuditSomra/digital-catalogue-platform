@@ -26,6 +26,7 @@ import type {
   FlatCategoryOption,
 } from "@/types";
 import { CascadingCategorySelect } from "@/components/ui/CascadingCategorySelect";
+import { getOptimizedImageUrl, IMAGE_PROFILES } from "@/lib/cloudinary-url";
 
 interface ProductListTableProps {
   products: ProductListItem[];
@@ -253,7 +254,7 @@ export function ProductListTable({
                           >
                             {product.primaryImage ? (
                               <img
-                                src={product.primaryImage.url}
+                                src={getOptimizedImageUrl(product.primaryImage.url, IMAGE_PROFILES.thumbnail)}
                                 alt={product.primaryImage.altText || product.name}
                                 className="w-full h-full object-contain p-1 group-hover/thumb:scale-105 transition"
                               />
@@ -422,7 +423,7 @@ export function ProductListTable({
                   >
                     {product.primaryImage ? (
                       <img
-                        src={product.primaryImage.url}
+                        src={getOptimizedImageUrl(product.primaryImage.url, IMAGE_PROFILES.thumbnail)}
                         alt={product.primaryImage.altText || product.name}
                         className="w-full h-full object-contain p-1"
                       />

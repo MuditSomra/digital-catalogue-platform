@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Scale, X, ArrowRight, Trash2 } from "lucide-react";
+import { getOptimizedImageUrl, IMAGE_PROFILES } from "@/lib/cloudinary-url";
 import type { CatalogueProductItem } from "@/types";
 
 interface ComparisonFloatingBarProps {
@@ -38,7 +39,7 @@ export function ComparisonFloatingBar({
               >
                 {p.primaryImage ? (
                   <img
-                    src={p.primaryImage.url}
+                    src={getOptimizedImageUrl(p.primaryImage.url, IMAGE_PROFILES.thumbnail)}
                     alt={p.name}
                     className="w-6 h-6 object-contain rounded"
                   />
