@@ -355,11 +355,10 @@ export default function ProductDetailPage({
                       setSelectedImageIndex(idx);
                       setActiveMediaTab("image");
                     }}
-                    className={`w-16 h-16 sm:w-18 sm:h-18 aspect-square rounded-xl bg-slate-50 p-1.5 border shrink-0 transition overflow-hidden cursor-pointer ${
-                      activeMediaTab === "image" && selectedImageIndex === idx
+                    className={`w-16 h-16 sm:w-18 sm:h-18 aspect-square rounded-xl bg-slate-50 p-1.5 border shrink-0 transition overflow-hidden cursor-pointer ${activeMediaTab === "image" && selectedImageIndex === idx
                         ? "border-blue-600 ring-2 ring-blue-100"
                         : "border-slate-200 hover:border-slate-300 opacity-75 hover:opacity-100"
-                    }`}
+                      }`}
                   >
                     <img
                       src={getOptimizedImageUrl(img.url, IMAGE_PROFILES.thumbnail)}
@@ -378,11 +377,10 @@ export default function ProductDetailPage({
                       setSelectedVideoIndex(idx);
                       setActiveMediaTab("video");
                     }}
-                    className={`w-16 h-16 sm:w-18 sm:h-18 aspect-square rounded-xl bg-slate-900 p-1 border shrink-0 transition overflow-hidden relative flex items-center justify-center cursor-pointer ${
-                      activeMediaTab === "video" && selectedVideoIndex === idx
+                    className={`w-16 h-16 sm:w-18 sm:h-18 aspect-square rounded-xl bg-slate-900 p-1 border shrink-0 transition overflow-hidden relative flex items-center justify-center cursor-pointer ${activeMediaTab === "video" && selectedVideoIndex === idx
                         ? "border-rose-600 ring-2 ring-rose-100"
                         : "border-slate-700 opacity-75 hover:opacity-100"
-                    }`}
+                      }`}
                   >
                     {vid.thumbnailUrl ? (
                       <img src={vid.thumbnailUrl} alt="video" className="w-full h-full object-cover rounded" />
@@ -490,7 +488,7 @@ export default function ProductDetailPage({
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                     Product Overview
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
+                  <p className="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line">
                     {product.description}
                   </p>
                 </div>
