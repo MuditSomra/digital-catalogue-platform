@@ -9,6 +9,8 @@ import {
   Layers,
   Tag,
   DollarSign,
+  IndianRupee,
+  Hash,
   PackageCheck,
   Sparkles,
   X,
@@ -25,20 +27,28 @@ interface DynamicFilterSidebarProps {
   categories: CategoryTreeNode[];
   brands: BrandOption[];
   availableFilters: DynamicAttributeFilterDef[];
-  priceRange: { min: number; max: number };
+  priceRange?: { min: number; max: number };
+  sellingPriceRange?: { min: number; max: number };
+  priceCodeRange?: { min: number; max: number };
 
   // Current Filter Values
   selectedCategoryId: string;
   selectedBrandIds: string[];
   minPrice?: number;
   maxPrice?: number;
+  minSellingPrice?: number;
+  maxSellingPrice?: number;
+  minPriceCode?: number;
+  maxPriceCode?: number;
   inStockOnly: boolean;
   attributeFilters: AttributeFilterParam[];
 
   // Change Handlers
   onCategoryChange: (catId: string) => void;
   onBrandToggle: (brandId: string) => void;
-  onPriceChange: (min?: number, max?: number) => void;
+  onPriceChange?: (min?: number, max?: number) => void;
+  onSellingPriceChange: (min?: number, max?: number) => void;
+  onPriceCodeChange: (min?: number, max?: number) => void;
   onInStockToggle: (val: boolean) => void;
   onAttributeFilterChange: (attributeSlug: string, values: string[]) => void;
   onClearAll: () => void;
@@ -50,25 +60,41 @@ export function DynamicFilterSidebar({
   brands,
   availableFilters,
   priceRange,
+  sellingPriceRange,
+  priceCodeRange,
   selectedCategoryId,
   selectedBrandIds,
   minPrice,
   maxPrice,
+  minSellingPrice,
+  maxSellingPrice,
+  minPriceCode,
+  maxPriceCode,
   inStockOnly,
   attributeFilters,
   onCategoryChange,
   onBrandToggle,
   onPriceChange,
+  onSellingPriceChange,
+  onPriceCodeChange,
   onInStockToggle,
   onAttributeFilterChange,
   onClearAll,
   onCloseMobile,
 }: DynamicFilterSidebarProps) {
+  const effMinSelling = minSellingPrice !== undefined ? minSellingPrice : minPrice;
+  const effMaxSelling = maxSellingPrice !== undefined ? maxSellingPrice : maxPrice;
+  const isSellingPriceActive = effMinSelling !== undefined || effMaxSelling !== undefined;
+  const isPriceCodeActive = minPriceCode !== undefined || maxPriceCode !== undefined;
+
+  const effSellingBounds = sellingPriceRange || priceRange || { min: 0, max: 100000 };
+  const effPriceCodeBounds = priceCodeRange || { min: 0, max: 10000 };
+
   const hasActiveFilters =
     Boolean(selectedCategoryId) ||
     selectedBrandIds.length > 0 ||
-    minPrice !== undefined ||
-    maxPrice !== undefined ||
+    isSellingPriceActive ||
+    isPriceCodeActive ||
     !inStockOnly ||
     attributeFilters.length > 0;
 
@@ -169,38 +195,173 @@ export function DynamicFilterSidebar({
         </div>
       )}
 
-      {/* 4. Price Range Filter */}
-      <div className="space-y-2.5 pt-4 border-t border-slate-100">
-        <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-          <DollarSign className="w-3.5 h-3.5 text-blue-600" />
-          <span>Price Range (₹)</span>
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <span className="text-[10px] text-slate-400 font-medium">Min</span>
-            <input
-              type="number"
-              value={minPrice !== undefined ? minPrice : ""}
-              onChange={(e) => {
-                const val = e.target.value ? Number(e.target.value) : undefined;
-                onPriceChange(val, maxPrice);
-              }}
-              placeholder={`₹${priceRange.min}`}
-              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition"
-            />
+      {/* 4. Mutually Exclusive Price Filters */}
+      <div className="space-y-4 pt-4 border-t border-slate-100">
+        <div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+              Price Filters
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium">Mutually exclusive</span>
           </div>
-          <div>
-            <span className="text-[10px] text-slate-400 font-medium">Max</span>
-            <input
-              type="number"
-              value={maxPrice !== undefined ? maxPrice : ""}
-              onChange={(e) => {
-                const val = e.target.value ? Number(e.target.value) : undefined;
-                onPriceChange(minPrice, val);
-              }}
-              placeholder={`₹${priceRange.max}`}
-              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition"
-            />
+          <p className="text-[10px] text-slate-400 mt-0.5">
+            Activating one price filter automatically clears the other.
+          </p>
+        </div>
+
+        {/* 4A. Selling Price Range */}
+        <div
+          className={`p-3 rounded-xl border transition ${
+            isSellingPriceActive
+              ? "bg-blue-50/50 border-blue-200 ring-1 ring-blue-500/20"
+              : "bg-slate-50/60 border-slate-200"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <IndianRupee className="w-3.5 h-3.5 text-blue-600" />
+              <span>Selling Price Range</span>
+            </label>
+            <div className="flex items-center gap-1.5">
+              {isSellingPriceActive && (
+                <>
+                  <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-md bg-blue-100 text-blue-700">
+                    Active
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onSellingPriceChange(undefined, undefined)}
+                    className="text-[10px] text-slate-400 hover:text-slate-600 underline font-medium"
+                  >
+                    Clear
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="text-[10px] text-slate-400 font-medium">Min (₹)</span>
+              <input
+                id="filter-selling-price-min"
+                type="number"
+                value={effMinSelling !== undefined ? effMinSelling : ""}
+                onFocus={() => {
+                  if (isPriceCodeActive) {
+                    onPriceCodeChange(undefined, undefined);
+                  }
+                }}
+                onChange={(e) => {
+                  const val = e.target.value !== "" ? Number(e.target.value) : undefined;
+                  if (isPriceCodeActive) {
+                    onPriceCodeChange(undefined, undefined);
+                  }
+                  onSellingPriceChange(val, effMaxSelling);
+                }}
+                placeholder={`₹${effSellingBounds.min}`}
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition"
+              />
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 font-medium">Max (₹)</span>
+              <input
+                id="filter-selling-price-max"
+                type="number"
+                value={effMaxSelling !== undefined ? effMaxSelling : ""}
+                onFocus={() => {
+                  if (isPriceCodeActive) {
+                    onPriceCodeChange(undefined, undefined);
+                  }
+                }}
+                onChange={(e) => {
+                  const val = e.target.value !== "" ? Number(e.target.value) : undefined;
+                  if (isPriceCodeActive) {
+                    onPriceCodeChange(undefined, undefined);
+                  }
+                  onSellingPriceChange(effMinSelling, val);
+                }}
+                placeholder={`₹${effSellingBounds.max}`}
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 4B. Price Code Range */}
+        <div
+          className={`p-3 rounded-xl border transition ${
+            isPriceCodeActive
+              ? "bg-blue-50/50 border-blue-200 ring-1 ring-blue-500/20"
+              : "bg-slate-50/60 border-slate-200"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <Hash className="w-3.5 h-3.5 text-blue-600" />
+              <span>Price Code Range</span>
+            </label>
+            <div className="flex items-center gap-1.5">
+              {isPriceCodeActive && (
+                <>
+                  <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-md bg-blue-100 text-blue-700">
+                    Active
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onPriceCodeChange(undefined, undefined)}
+                    className="text-[10px] text-slate-400 hover:text-slate-600 underline font-medium"
+                  >
+                    Clear
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="text-[10px] text-slate-400 font-medium">Min Code</span>
+              <input
+                id="filter-price-code-min"
+                type="number"
+                value={minPriceCode !== undefined ? minPriceCode : ""}
+                onFocus={() => {
+                  if (isSellingPriceActive) {
+                    onSellingPriceChange(undefined, undefined);
+                  }
+                }}
+                onChange={(e) => {
+                  const val = e.target.value !== "" ? Number(e.target.value) : undefined;
+                  if (isSellingPriceActive) {
+                    onSellingPriceChange(undefined, undefined);
+                  }
+                  onPriceCodeChange(val, maxPriceCode);
+                }}
+                placeholder={effPriceCodeBounds.min ? String(effPriceCodeBounds.min) : "Min"}
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition"
+              />
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 font-medium">Max Code</span>
+              <input
+                id="filter-price-code-max"
+                type="number"
+                value={maxPriceCode !== undefined ? maxPriceCode : ""}
+                onFocus={() => {
+                  if (isSellingPriceActive) {
+                    onSellingPriceChange(undefined, undefined);
+                  }
+                }}
+                onChange={(e) => {
+                  const val = e.target.value !== "" ? Number(e.target.value) : undefined;
+                  if (isSellingPriceActive) {
+                    onSellingPriceChange(undefined, undefined);
+                  }
+                  onPriceCodeChange(minPriceCode, val);
+                }}
+                placeholder={effPriceCodeBounds.max ? String(effPriceCodeBounds.max) : "Max"}
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition"
+              />
+            </div>
           </div>
         </div>
       </div>

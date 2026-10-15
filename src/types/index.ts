@@ -479,6 +479,14 @@ export interface PaginatedCatalogueResponse {
     min: number;
     max: number;
   };
+  priceCodeRange?: {
+    min: number;
+    max: number;
+  };
+  sellingPriceRange?: {
+    min: number;
+    max: number;
+  };
 }
 
 // ==============================================================================

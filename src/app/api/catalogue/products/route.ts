@@ -20,8 +20,10 @@ export async function GET(request: NextRequest) {
         search,
         categoryId,
         brandIds,
-        minPrice,
-        maxPrice,
+        minSellingPrice,
+        maxSellingPrice,
+        minPriceCode,
+        maxPriceCode,
         inStockOnly,
         featuredOnly,
         sortBy,
@@ -35,8 +37,18 @@ export async function GET(request: NextRequest) {
           const cId = searchParams.get("categoryId") || undefined;
           const brandIdsParam = searchParams.get("brandIds") || searchParams.get("brandId");
           const bIds = brandIdsParam ? brandIdsParam.split(",").filter(Boolean) : undefined;
-          const minP = searchParams.get("minPrice") ? Number(searchParams.get("minPrice")) : undefined;
-          const maxP = searchParams.get("maxPrice") ? Number(searchParams.get("maxPrice")) : undefined;
+          const minSellingParam = searchParams.get("minSellingPrice") || searchParams.get("minPrice");
+          const maxSellingParam = searchParams.get("maxSellingPrice") || searchParams.get("maxPrice");
+          const minCodeParam = searchParams.get("minPriceCode");
+          const maxCodeParam = searchParams.get("maxPriceCode");
+
+          const minCode = minCodeParam !== null && minCodeParam !== "" && !isNaN(Number(minCodeParam)) ? Number(minCodeParam) : undefined;
+          const maxCode = maxCodeParam !== null && maxCodeParam !== "" && !isNaN(Number(maxCodeParam)) ? Number(maxCodeParam) : undefined;
+          const isPriceCode = minCode !== undefined || maxCode !== undefined;
+
+          const minSelling = !isPriceCode && minSellingParam !== null && minSellingParam !== "" && !isNaN(Number(minSellingParam)) ? Number(minSellingParam) : undefined;
+          const maxSelling = !isPriceCode && maxSellingParam !== null && maxSellingParam !== "" && !isNaN(Number(maxSellingParam)) ? Number(maxSellingParam) : undefined;
+
           const inStock = searchParams.get("inStockOnly") === "true";
           const featOnly = searchParams.get("featuredOnly") === "true";
           const sort = (searchParams.get("sortBy") as any) || "featured";
@@ -57,8 +69,10 @@ export async function GET(request: NextRequest) {
             search: s,
             categoryId: cId,
             brandIds: bIds,
-            minPrice: minP,
-            maxPrice: maxP,
+            minSellingPrice: minSelling,
+            maxSellingPrice: maxSelling,
+            minPriceCode: isPriceCode ? minCode : undefined,
+            maxPriceCode: isPriceCode ? maxCode : undefined,
             inStockOnly: inStock,
             featuredOnly: featOnly,
             sortBy: sort,
@@ -77,8 +91,10 @@ export async function GET(request: NextRequest) {
             search,
             categoryId,
             brandIds,
-            minPrice,
-            maxPrice,
+            minSellingPrice,
+            maxSellingPrice,
+            minPriceCode,
+            maxPriceCode,
             inStockOnly,
             featuredOnly,
             attributeFilters,

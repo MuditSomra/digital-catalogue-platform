@@ -38,7 +38,8 @@ function CustomerCatalogueContent() {
   const [products, setProducts] = useState<CatalogueProductItem[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
   const [availableFilters, setAvailableFilters] = useState<DynamicAttributeFilterDef[]>([]);
-  const [priceBounds, setPriceBounds] = useState<{ min: number; max: number }>({ min: 0, max: 100000 });
+  const [sellingPriceBounds, setSellingPriceBounds] = useState<{ min: number; max: number }>({ min: 0, max: 100000 });
+  const [priceCodeBounds, setPriceCodeBounds] = useState<{ min: number; max: number }>({ min: 0, max: 10000 });
   const [categories, setCategories] = useState<CategoryTreeNode[]>([]);
   const [brands, setBrands] = useState<BrandOption[]>([]);
 
@@ -51,8 +52,27 @@ function CustomerCatalogueContent() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState(searchParams.get("category") || "");
   const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
-  const [minPrice, setMinPrice] = useState<number | undefined>(undefined);
-  const [maxPrice, setMaxPrice] = useState<number | undefined>(undefined);
+
+  const initialHasPriceCode = Boolean(searchParams.get("minPriceCode") || searchParams.get("maxPriceCode"));
+  const [minSellingPrice, setMinSellingPrice] = useState<number | undefined>(() => {
+    if (initialHasPriceCode) return undefined;
+    const p = searchParams.get("minSellingPrice") || searchParams.get("minPrice");
+    return p && !isNaN(Number(p)) ? Number(p) : undefined;
+  });
+  const [maxSellingPrice, setMaxSellingPrice] = useState<number | undefined>(() => {
+    if (initialHasPriceCode) return undefined;
+    const p = searchParams.get("maxSellingPrice") || searchParams.get("maxPrice");
+    return p && !isNaN(Number(p)) ? Number(p) : undefined;
+  });
+  const [minPriceCode, setMinPriceCode] = useState<number | undefined>(() => {
+    const p = searchParams.get("minPriceCode");
+    return p && !isNaN(Number(p)) ? Number(p) : undefined;
+  });
+  const [maxPriceCode, setMaxPriceCode] = useState<number | undefined>(() => {
+    const p = searchParams.get("maxPriceCode");
+    return p && !isNaN(Number(p)) ? Number(p) : undefined;
+  });
+
   const [inStockOnly, setInStockOnly] = useState<boolean>(() => {
     const param = searchParams.get("inStockOnly");
     if (param === "false") return false;
@@ -113,8 +133,10 @@ function CustomerCatalogueContent() {
       if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
       if (selectedCategoryId) params.set("categoryId", selectedCategoryId);
       if (selectedBrandIds.length > 0) params.set("brandIds", selectedBrandIds.join(","));
-      if (minPrice !== undefined) params.set("minPrice", String(minPrice));
-      if (maxPrice !== undefined) params.set("maxPrice", String(maxPrice));
+      if (minSellingPrice !== undefined) params.set("minSellingPrice", String(minSellingPrice));
+      if (maxSellingPrice !== undefined) params.set("maxSellingPrice", String(maxSellingPrice));
+      if (minPriceCode !== undefined) params.set("minPriceCode", String(minPriceCode));
+      if (maxPriceCode !== undefined) params.set("maxPriceCode", String(maxPriceCode));
       if (inStockOnly) params.set("inStockOnly", "true");
       if (attributeFilters.length > 0) {
         params.set("attributeFilters", JSON.stringify(attributeFilters));
@@ -132,8 +154,11 @@ function CustomerCatalogueContent() {
         setProducts(json.data.products);
         setPagination(json.data.pagination);
         setAvailableFilters(json.data.availableFilters || []);
-        if (json.data.priceRange) {
-          setPriceBounds(json.data.priceRange);
+        if (json.data.sellingPriceRange) {
+          setSellingPriceBounds(json.data.sellingPriceRange);
+        }
+        if (json.data.priceCodeRange) {
+          setPriceCodeBounds(json.data.priceCodeRange);
         }
       }
     } catch (err) {
@@ -151,8 +176,10 @@ function CustomerCatalogueContent() {
     debouncedSearch,
     selectedCategoryId,
     selectedBrandIds,
-    minPrice,
-    maxPrice,
+    minSellingPrice,
+    maxSellingPrice,
+    minPriceCode,
+    maxPriceCode,
     inStockOnly,
     attributeFilters,
   ]);
@@ -160,6 +187,82 @@ function CustomerCatalogueContent() {
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+
+  // Synchronize filter state with browser URL search parameters
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+
+    if (selectedCategoryId) {
+      url.searchParams.set("category", selectedCategoryId);
+    } else {
+      url.searchParams.delete("category");
+      url.searchParams.delete("categoryId");
+    }
+
+    if (selectedBrandIds.length > 0) {
+      url.searchParams.set("brandIds", selectedBrandIds.join(","));
+    } else {
+      url.searchParams.delete("brandIds");
+    }
+
+    if (!inStockOnly) {
+      url.searchParams.set("inStockOnly", "false");
+    } else {
+      url.searchParams.delete("inStockOnly");
+    }
+
+    if (debouncedSearch.trim()) {
+      url.searchParams.set("search", debouncedSearch.trim());
+    } else {
+      url.searchParams.delete("search");
+    }
+
+    // Mutually exclusive price filter URL params
+    if (minSellingPrice !== undefined) {
+      url.searchParams.set("minSellingPrice", String(minSellingPrice));
+    } else {
+      url.searchParams.delete("minSellingPrice");
+      url.searchParams.delete("minPrice");
+    }
+    if (maxSellingPrice !== undefined) {
+      url.searchParams.set("maxSellingPrice", String(maxSellingPrice));
+    } else {
+      url.searchParams.delete("maxSellingPrice");
+      url.searchParams.delete("maxPrice");
+    }
+
+    if (minPriceCode !== undefined) {
+      url.searchParams.set("minPriceCode", String(minPriceCode));
+    } else {
+      url.searchParams.delete("minPriceCode");
+    }
+    if (maxPriceCode !== undefined) {
+      url.searchParams.set("maxPriceCode", String(maxPriceCode));
+    } else {
+      url.searchParams.delete("maxPriceCode");
+    }
+
+    if (currentPage > 1) {
+      url.searchParams.set("page", String(currentPage));
+    } else {
+      url.searchParams.delete("page");
+    }
+
+    const newSearch = url.searchParams.toString();
+    const newUrl = url.pathname + (newSearch ? `?${newSearch}` : "");
+    window.history.replaceState(null, "", newUrl);
+  }, [
+    selectedCategoryId,
+    selectedBrandIds,
+    inStockOnly,
+    debouncedSearch,
+    minSellingPrice,
+    maxSellingPrice,
+    minPriceCode,
+    maxPriceCode,
+    currentPage,
+  ]);
 
   // Handle Category Change (resets dynamic attribute filters)
   const handleCategoryChange = (catId: string) => {
@@ -173,6 +276,23 @@ function CustomerCatalogueContent() {
     setSelectedBrandIds((prev) =>
       prev.includes(brandId) ? prev.filter((id) => id !== brandId) : [...prev, brandId]
     );
+    setCurrentPage(1);
+  };
+
+  // Handle Mutually Exclusive Price Filters
+  const handleSellingPriceChange = (min?: number, max?: number) => {
+    setMinSellingPrice(min);
+    setMaxSellingPrice(max);
+    setMinPriceCode(undefined);
+    setMaxPriceCode(undefined);
+    setCurrentPage(1);
+  };
+
+  const handlePriceCodeChange = (min?: number, max?: number) => {
+    setMinPriceCode(min);
+    setMaxPriceCode(max);
+    setMinSellingPrice(undefined);
+    setMaxSellingPrice(undefined);
     setCurrentPage(1);
   };
 
@@ -193,8 +313,10 @@ function CustomerCatalogueContent() {
     setSearch("");
     setSelectedCategoryId("");
     setSelectedBrandIds([]);
-    setMinPrice(undefined);
-    setMaxPrice(undefined);
+    setMinSellingPrice(undefined);
+    setMaxSellingPrice(undefined);
+    setMinPriceCode(undefined);
+    setMaxPriceCode(undefined);
     setInStockOnly(true);
     setAttributeFilters([]);
     setCurrentPage(1);
@@ -302,20 +424,20 @@ function CustomerCatalogueContent() {
               categories={categories}
               brands={brands}
               availableFilters={availableFilters}
-              priceRange={priceBounds}
+              sellingPriceRange={sellingPriceBounds}
+              priceCodeRange={priceCodeBounds}
               selectedCategoryId={selectedCategoryId}
               selectedBrandIds={selectedBrandIds}
-              minPrice={minPrice}
-              maxPrice={maxPrice}
+              minSellingPrice={minSellingPrice}
+              maxSellingPrice={maxSellingPrice}
+              minPriceCode={minPriceCode}
+              maxPriceCode={maxPriceCode}
               inStockOnly={inStockOnly}
               attributeFilters={attributeFilters}
               onCategoryChange={handleCategoryChange}
               onBrandToggle={handleBrandToggle}
-              onPriceChange={(min, max) => {
-                setMinPrice(min);
-                setMaxPrice(max);
-                setCurrentPage(1);
-              }}
+              onSellingPriceChange={handleSellingPriceChange}
+              onPriceCodeChange={handlePriceCodeChange}
               onInStockToggle={(val) => {
                 setInStockOnly(val);
                 setCurrentPage(1);
@@ -430,20 +552,20 @@ function CustomerCatalogueContent() {
               categories={categories}
               brands={brands}
               availableFilters={availableFilters}
-              priceRange={priceBounds}
+              sellingPriceRange={sellingPriceBounds}
+              priceCodeRange={priceCodeBounds}
               selectedCategoryId={selectedCategoryId}
               selectedBrandIds={selectedBrandIds}
-              minPrice={minPrice}
-              maxPrice={maxPrice}
+              minSellingPrice={minSellingPrice}
+              maxSellingPrice={maxSellingPrice}
+              minPriceCode={minPriceCode}
+              maxPriceCode={maxPriceCode}
               inStockOnly={inStockOnly}
               attributeFilters={attributeFilters}
               onCategoryChange={handleCategoryChange}
               onBrandToggle={handleBrandToggle}
-              onPriceChange={(min, max) => {
-                setMinPrice(min);
-                setMaxPrice(max);
-                setCurrentPage(1);
-              }}
+              onSellingPriceChange={handleSellingPriceChange}
+              onPriceCodeChange={handlePriceCodeChange}
               onInStockToggle={(val) => {
                 setInStockOnly(val);
                 setCurrentPage(1);
