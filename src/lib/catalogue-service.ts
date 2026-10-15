@@ -3,6 +3,7 @@ import { AttributeType, Prisma } from "@prisma/client";
 import { calculateStockStatus } from "./inventory-service";
 import { calculateDiscountPercent } from "./product-service";
 import { getCategoryWithDescendantIds } from "./category-service";
+import { timeOperation, getActiveTiming } from "./perf-timing";
 import type {
   CatalogueProductItem,
   DynamicAttributeFilterDef,
@@ -42,24 +43,31 @@ const PRICE_RANGE_CACHE_TTL = 60 * 1000; // 60 seconds
 export async function getCachedPriceRange(): Promise<{ min: number; max: number }> {
   const now = Date.now();
   if (cachedPriceRange && now - cachedPriceRange.timestamp < PRICE_RANGE_CACHE_TTL) {
+    getActiveTiming()?.record("cache_price_range", 0, "Price Range (Memory Cache Hit)");
     return { min: cachedPriceRange.min, max: cachedPriceRange.max };
   }
 
-  const priceAggregate = await prisma.product.aggregate({
-    where: { isActive: true },
-    _min: { mrp: true, sellingPrice: true },
-    _max: { mrp: true, sellingPrice: true },
-  });
+  return await timeOperation(
+    "db_price_aggregate",
+    async () => {
+      const priceAggregate = await prisma.product.aggregate({
+        where: { isActive: true },
+        _min: { mrp: true, sellingPrice: true },
+        _max: { mrp: true, sellingPrice: true },
+      });
 
-  const min = Math.floor(
-    Number(priceAggregate._min.sellingPrice || priceAggregate._min.mrp || 0)
-  );
-  const max = Math.ceil(
-    Number(priceAggregate._max.mrp || priceAggregate._max.sellingPrice || 100000)
-  );
+      const min = Math.floor(
+        Number(priceAggregate._min.sellingPrice || priceAggregate._min.mrp || 0)
+      );
+      const max = Math.ceil(
+        Number(priceAggregate._max.mrp || priceAggregate._max.sellingPrice || 100000)
+      );
 
-  cachedPriceRange = { min, max, timestamp: now };
-  return { min, max };
+      cachedPriceRange = { min, max, timestamp: now };
+      return { min, max };
+    },
+    "Price Range (DB Aggregate Scan)"
+  );
 }
 
 /**
@@ -173,7 +181,11 @@ export async function getCatalogueProducts(
 
   // 1. Category hierarchy filter (selected category + all descendant subcategories)
   if (categoryId && categoryId !== "all") {
-    const categoryIds = await getCategoryWithDescendantIds(categoryId);
+    const categoryIds = await timeOperation(
+      "category_hierarchy",
+      () => getCategoryWithDescendantIds(categoryId),
+      "Resolve Category Hierarchy"
+    );
     andConditions.push({ categoryId: { in: categoryIds } });
   }
 
@@ -305,143 +317,159 @@ export async function getCatalogueProducts(
 
   // 9. Execute queries concurrently
   const [totalCount, rawProducts, availableFilters, priceRange] = await Promise.all([
-    prisma.product.count({ where }),
-    prisma.product.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy,
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        sku: true,
-        modelNumber: true,
-        description: true,
-        brandId: true,
-        categoryId: true,
-        mrp: true,
-        sellingPrice: true,
-        privatePriceCode: true,
-        warranty: true,
-        isFeatured: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-        brand: {
-          select: { id: true, name: true, slug: true, logoUrl: true },
-        },
-        category: {
-          select: { id: true, name: true, slug: true, parentId: true },
-        },
-        inventory: {
-          select: { id: true, quantity: true, lowStockThreshold: true },
-        },
-        images: {
-          orderBy: [{ isPrimary: Prisma.SortOrder.desc }, { sortOrder: Prisma.SortOrder.asc }, { createdAt: Prisma.SortOrder.asc }],
-          take: 1,
+    timeOperation("db_count", () => prisma.product.count({ where }), "Product Count Query"),
+    timeOperation(
+      "db_products",
+      () =>
+        prisma.product.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy,
           select: {
             id: true,
-            productId: true,
-            url: true,
-            publicId: true,
-            altText: true,
-            sortOrder: true,
-            isPrimary: true,
+            name: true,
+            slug: true,
+            sku: true,
+            modelNumber: true,
+            description: true,
+            brandId: true,
+            categoryId: true,
+            mrp: true,
+            sellingPrice: true,
+            privatePriceCode: true,
+            warranty: true,
+            isFeatured: true,
+            isActive: true,
             createdAt: true,
             updatedAt: true,
-          },
-        },
-        attributeValues: {
-          take: 4,
-          select: {
-            id: true,
-            attributeId: true,
-            value: true,
-            numericValue: true,
-            booleanValue: true,
-            attribute: {
+            brand: {
+              select: { id: true, name: true, slug: true, logoUrl: true },
+            },
+            category: {
+              select: { id: true, name: true, slug: true, parentId: true },
+            },
+            inventory: {
+              select: { id: true, quantity: true, lowStockThreshold: true },
+            },
+            images: {
+              orderBy: [{ isPrimary: Prisma.SortOrder.desc }, { sortOrder: Prisma.SortOrder.asc }, { createdAt: Prisma.SortOrder.asc }],
+              take: 1,
               select: {
                 id: true,
-                name: true,
-                slug: true,
-                type: true,
-                unit: true,
+                productId: true,
+                url: true,
+                publicId: true,
+                altText: true,
+                sortOrder: true,
+                isPrimary: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            },
+            attributeValues: {
+              take: 4,
+              select: {
+                id: true,
+                attributeId: true,
+                value: true,
+                numericValue: true,
+                booleanValue: true,
+                attribute: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    type: true,
+                    unit: true,
+                  },
+                },
               },
             },
           },
-        },
-      },
-    }),
-    getCategoryDynamicFilters(categoryId),
+        }),
+      "Product FindMany & Relations"
+    ),
+    timeOperation(
+      "db_filters",
+      () => getCategoryDynamicFilters(categoryId),
+      "Resolve Dynamic Attribute Filters"
+    ),
     getCachedPriceRange(),
   ]);
 
   // Format products for catalogue list
-  const products: CatalogueProductItem[] = rawProducts.map((p) => {
-    const mrp = Number(p.mrp);
-    const sellingPrice = p.sellingPrice != null ? Number(p.sellingPrice) : null;
-    const qty = p.inventory?.quantity ?? 0;
-    const threshold = p.inventory?.lowStockThreshold ?? 5;
-    const stockStatus = calculateStockStatus(qty, threshold);
+  const products: CatalogueProductItem[] = await timeOperation(
+    "format_products",
+    () =>
+      rawProducts.map((p) => {
+        const mrp = Number(p.mrp);
+        const sellingPrice = p.sellingPrice != null ? Number(p.sellingPrice) : null;
+        const qty = p.inventory?.quantity ?? 0;
+        const threshold = p.inventory?.lowStockThreshold ?? 5;
+        const stockStatus = calculateStockStatus(qty, threshold);
 
-    const primaryImage =
-      p.images.find((img) => img.isPrimary) ||
-      (p.images.length > 0 ? p.images[0] : null);
+        const primaryImage =
+          p.images.find((img) => img.isPrimary) ||
+          (p.images.length > 0 ? p.images[0] : null);
 
-    const formattedImages: ProductImageItem[] = p.images.map((img) => ({
-      id: img.id,
-      productId: img.productId,
-      url: img.url,
-      publicId: img.publicId,
-      altText: img.altText,
-      sortOrder: img.sortOrder,
-      isPrimary: img.isPrimary,
-      createdAt: img.createdAt,
-      updatedAt: img.updatedAt,
-    }));
+        const formattedImages: ProductImageItem[] = p.images.map((img) => ({
+          id: img.id,
+          productId: img.productId,
+          url: img.url,
+          publicId: img.publicId,
+          altText: img.altText,
+          sortOrder: img.sortOrder,
+          isPrimary: img.isPrimary,
+          createdAt: img.createdAt,
+          updatedAt: img.updatedAt,
+        }));
 
-    return {
-      id: p.id,
-      name: p.name,
-      slug: p.slug,
-      sku: p.sku,
-      modelNumber: p.modelNumber,
-      description: p.description,
-      brandId: p.brandId,
-      categoryId: p.categoryId,
-      mrp,
-      sellingPrice,
-      discountPercent: calculateDiscountPercent(mrp, sellingPrice),
-      privatePriceCode: p.privatePriceCode,
-      warranty: p.warranty,
-      isFeatured: p.isFeatured,
-      isActive: p.isActive,
-      createdAt: p.createdAt,
-      updatedAt: p.updatedAt,
-      brand: p.brand,
-      category: p.category,
-      inventory: {
-        quantity: qty,
-        lowStockThreshold: threshold,
-        stockStatus,
-      },
-      primaryImage,
-      images: formattedImages,
-      videos: [], // videos are not needed on product list cards
-      attributeValues: p.attributeValues.map((av) => ({
-        id: av.id,
-        attributeId: av.attributeId,
-        attributeSlug: av.attribute.slug,
-        attributeName: av.attribute.name,
-        attributeType: av.attribute.type,
-        unit: av.attribute.unit,
-        value: av.value,
-        numericValue: av.numericValue,
-        booleanValue: av.booleanValue,
-      })),
-    };
-  });
+        return {
+          id: p.id,
+          name: p.name,
+          slug: p.slug,
+          sku: p.sku,
+          modelNumber: p.modelNumber,
+          description: p.description,
+          brandId: p.brandId,
+          categoryId: p.categoryId,
+          mrp,
+          sellingPrice,
+          stockStatus,
+          stockQuantity: qty,
+          discountPercent: calculateDiscountPercent(mrp, sellingPrice),
+          privatePriceCode: p.privatePriceCode,
+          warranty: p.warranty,
+          isFeatured: p.isFeatured,
+          isActive: p.isActive,
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
+          brand: p.brand,
+          category: p.category,
+          inventory: {
+            quantity: qty,
+            lowStockThreshold: threshold,
+            stockStatus,
+          },
+          primaryImage,
+          images: formattedImages,
+          videos: [], // videos are not needed on product list cards
+          attributeValues: p.attributeValues.map((av) => ({
+            id: av.id,
+            attributeId: av.attributeId,
+            attributeSlug: av.attribute.slug,
+            attributeName: av.attribute.name,
+            attributeType: av.attribute.type,
+            unit: av.attribute.unit,
+            value: av.value,
+            numericValue: av.numericValue,
+            booleanValue: av.booleanValue,
+          })),
+        };
+      }),
+    "Format Product Cards (In-Memory)"
+  );
 
   const totalPages = Math.ceil(totalCount / limit) || 1;
 

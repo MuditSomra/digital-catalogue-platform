@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { prisma } from "./prisma";
 import type { AdminUser, Session, TrustedDevice } from "@prisma/client";
+import { timeOperation } from "./perf-timing";
 
 // ==============================================================================
 // CONSTANTS & CONFIGURATION
@@ -248,10 +249,14 @@ export async function authenticateAdmin(options: {
   const normalizedEmail = email.toLowerCase().trim();
 
   // 1. Ensure admin user exists in DB
-  await ensureAdminUserExists();
+  await timeOperation("db_ensure_admin", () => ensureAdminUserExists(), "Ensure Admin User Exists");
 
   // 2. Check brute force rate limit
-  const rateLimitStatus = await checkLoginRateLimit(normalizedEmail);
+  const rateLimitStatus = await timeOperation(
+    "db_check_rate_limit",
+    () => checkLoginRateLimit(normalizedEmail),
+    "Check Rate Limit"
+  );
   if (rateLimitStatus.isLocked) {
     throw new AuthError(
       `Too many failed login attempts. Verification locked for approximately ${rateLimitStatus.remainingMinutes} more minute(s).`,
@@ -261,9 +266,14 @@ export async function authenticateAdmin(options: {
   }
 
   // 3. Find user
-  const user = await prisma.adminUser.findUnique({
-    where: { email: normalizedEmail },
-  });
+  const user = await timeOperation(
+    "db_user_lookup",
+    () =>
+      prisma.adminUser.findUnique({
+        where: { email: normalizedEmail },
+      }),
+    "Find Admin User"
+  );
 
   if (!user || !user.isActive || !user.passwordHash) {
     await recordFailedLoginAttempt(normalizedEmail);
@@ -271,7 +281,11 @@ export async function authenticateAdmin(options: {
   }
 
   // 4. Verify password
-  const isPasswordValid = verifyPassword(password, user.passwordHash);
+  const isPasswordValid = await timeOperation(
+    "cpu_verify_password",
+    () => verifyPassword(password, user.passwordHash!),
+    "Verify Password Hash (scrypt)"
+  );
   if (!isPasswordValid) {
     const failedStatus = await recordFailedLoginAttempt(normalizedEmail);
     if (failedStatus.isLocked) {
@@ -290,7 +304,11 @@ export async function authenticateAdmin(options: {
   }
 
   // 5. Successful password - reset rate limit
-  await resetLoginAttempts(normalizedEmail);
+  await timeOperation(
+    "db_reset_rate_limit",
+    () => resetLoginAttempts(normalizedEmail),
+    "Reset Rate Limit Attempts"
+  );
 
   // 6. Handle Trusted Device Registration if requested
   let trustedDeviceRecord: TrustedDevice | null = null;
@@ -347,20 +365,25 @@ export async function authenticateAdmin(options: {
     (isTrusted ? trustedDeviceRecord?.deviceName : parseDeviceNameFromUserAgent(userAgent)) ||
     "Showroom Browser";
 
-  const session = await prisma.session.create({
-    data: {
-      sessionTokenHash,
-      adminUserId: user.id,
-      isTrustedDevice: isTrusted,
-      trustedDeviceId: trustedDeviceRecord?.id || null,
-      deviceLabel,
-      userAgent: userAgent ? userAgent.slice(0, 500) : null,
-      ipAddress: ipAddress || null,
-      lastActiveAt: now,
-      expiresAt,
-      isRevoked: false,
-    },
-  });
+  const session = await timeOperation(
+    "db_session_create",
+    () =>
+      prisma.session.create({
+        data: {
+          sessionTokenHash,
+          adminUserId: user.id,
+          isTrustedDevice: isTrusted,
+          trustedDeviceId: trustedDeviceRecord?.id || null,
+          deviceLabel,
+          userAgent: userAgent ? userAgent.slice(0, 500) : null,
+          ipAddress: ipAddress || null,
+          lastActiveAt: now,
+          expiresAt,
+          isRevoked: false,
+        },
+      }),
+    "Insert Session Record"
+  );
 
   return {
     user,
@@ -408,15 +431,24 @@ export async function validateSession(rawSessionToken: string | undefined | null
     };
   }
 
-  const tokenHash = hashToken(rawSessionToken.trim());
+  const tokenHash = await timeOperation(
+    "token_hash",
+    () => hashToken(rawSessionToken.trim()),
+    "Hash Session Token"
+  );
 
-  const session = await prisma.session.findUnique({
-    where: { sessionTokenHash: tokenHash },
-    include: {
-      adminUser: true,
-      trustedDevice: true,
-    },
-  });
+  const session = await timeOperation(
+    "db_session_lookup",
+    () =>
+      prisma.session.findUnique({
+        where: { sessionTokenHash: tokenHash },
+        include: {
+          adminUser: true,
+          trustedDevice: true,
+        },
+      }),
+    "Lookup Session in Database"
+  );
 
   if (!session) {
     return {
