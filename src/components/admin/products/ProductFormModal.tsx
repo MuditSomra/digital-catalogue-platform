@@ -14,6 +14,12 @@ import {
   ShieldCheck,
   Percent,
   Image as ImageIcon,
+  Copy,
+  Check,
+  RotateCcw,
+  ChevronDown,
+  ChevronUp,
+  FileText,
 } from "lucide-react";
 import type {
   BrandOption,
@@ -23,6 +29,14 @@ import type {
   CategoryTreeNode,
   FlatCategoryOption,
 } from "@/types";
+import {
+  parseProductImport,
+  matchBrand,
+  matchCategory,
+  matchDynamicCategoryAttributes,
+  isValidValue,
+  CHATGPT_PRODUCT_EXTRACTION_PROMPT,
+} from "@/lib/product-import-parser";
 import { BrandModal } from "./BrandModal";
 import { ProductMediaManager } from "./ProductMediaManager";
 import { CascadingCategorySelect } from "@/components/ui/CascadingCategorySelect";
@@ -100,16 +114,36 @@ export function ProductFormModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Product Import State
+  const [importText, setImportText] = useState("");
+  const [isAutoFilling, setIsAutoFilling] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [promptCopied, setPromptCopied] = useState(false);
+  const [overwriteManualFields, setOverwriteManualFields] = useState(false);
+  const [isImportExpanded, setIsImportExpanded] = useState(true);
+  const [importSummary, setImportSummary] = useState<{
+    populated: string[];
+    preserved: string[];
+    review: string[];
+  } | null>(null);
+
   // Initialize/Reset form when modal opens or productToEdit changes
   useEffect(() => {
     if (!isOpen) {
       setError(null);
       setCategoryChangedWarning(false);
       setActiveTab("details");
+      setImportText("");
+      setImportError(null);
+      setImportSummary(null);
+      setPromptCopied(false);
+      setOverwriteManualFields(false);
       return;
     }
 
     setActiveTab("details");
+    setImportError(null);
+    setImportSummary(null);
 
     if (productToEdit) {
       setName(productToEdit.name || "");
@@ -283,6 +317,193 @@ export function ProductFormModal({
         return { ...prev, [attrId]: [...currentList, optionVal] };
       }
     });
+  };
+
+  // Copy standardized showroom prompt for ChatGPT
+  const handleCopyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(CHATGPT_PRODUCT_EXTRACTION_PROMPT);
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 2500);
+    } catch (err) {
+      console.error("Failed to copy ChatGPT prompt to clipboard:", err);
+    }
+  };
+
+  // Clear pasted import text and summary
+  const handleClearImport = () => {
+    setImportText("");
+    setImportError(null);
+    setImportSummary(null);
+  };
+
+  // API-free auto-fill handler for pasted product information
+  const handleAutoFill = async () => {
+    if (!importText.trim()) return;
+    setIsAutoFilling(true);
+    setImportError(null);
+
+    try {
+      const parsed = parseProductImport(importText);
+
+      const populatedList: string[] = [];
+      const preservedList: string[] = [];
+      const reviewList: string[] = [];
+
+      // Helper to safely assign standard text fields
+      const applyField = (
+        fieldName: string,
+        extractedVal: string | undefined,
+        currentVal: string,
+        setter: (v: string) => void,
+        displayName: string = fieldName
+      ) => {
+        if (extractedVal && isValidValue(extractedVal)) {
+          if (!overwriteManualFields && currentVal && currentVal.trim() && currentVal.trim() !== extractedVal.trim()) {
+            preservedList.push(`${displayName} (kept manual input: "${currentVal}")`);
+          } else {
+            setter(extractedVal);
+            populatedList.push(`${displayName}: "${extractedVal}"`);
+          }
+        } else {
+          if (!currentVal) {
+            reviewList.push(`${displayName}: not found in source`);
+          }
+        }
+      };
+
+      // 1. Basic Fields
+      applyField("Product Name", parsed.name, name, setName);
+      applyField("Model Number", parsed.modelNumber, modelNumber, setModelNumber);
+      applyField("SKU", parsed.sku, sku, setSku);
+      applyField("MRP", parsed.mrp, mrp, setMrp, "MRP (₹)");
+      applyField("Selling Price", parsed.sellingPrice, sellingPrice, setSellingPrice, "Selling Price (₹)");
+      applyField("Private Price Code", parsed.privatePriceCode, privatePriceCode, setPrivatePriceCode);
+      applyField("Warranty", parsed.warranty, warranty, setWarranty);
+
+      // 2. Product Overview Description
+      if (parsed.formattedDescription) {
+        if (!overwriteManualFields && description && description.trim() && description.trim() !== parsed.formattedDescription.trim()) {
+          preservedList.push("Description / Product Overview (kept existing manual input)");
+        } else {
+          setDescription(parsed.formattedDescription);
+          populatedList.push("Product Overview (Specification Table & Features)");
+        }
+      }
+
+      // 3. Brand Matching
+      const brandMatch = matchBrand(parsed.brandName, brands);
+      if (brandMatch.matchedBrand) {
+        if (!overwriteManualFields && brandId && brandId !== brandMatch.matchedBrand.id) {
+          preservedList.push(`Brand (kept manual selection)`);
+        } else {
+          setBrandId(brandMatch.matchedBrand.id);
+          populatedList.push(`Brand: ${brandMatch.matchedBrand.name}`);
+        }
+      } else {
+        if (brandMatch.isAmbiguous) {
+          reviewList.push(`Brand: ${brandMatch.matchReason}`);
+        } else if (parsed.brandName) {
+          reviewList.push(`Brand: "${parsed.brandName}" not found in catalogue brands`);
+        } else {
+          reviewList.push("Brand: not identified in source");
+        }
+      }
+
+      // 4. Category & Subcategory Matching
+      const catMatch = matchCategory(
+        parsed.categoryName,
+        parsed.subcategoryName,
+        parsed.name || name,
+        categories
+      );
+
+      let activeCatId = categoryId;
+      if (catMatch.matchedCategory) {
+        const matchedCatId = catMatch.matchedCategory.id;
+        if (!overwriteManualFields && categoryId && categoryId !== matchedCatId) {
+          preservedList.push(`Category (kept manual selection: ${selectedCategoryName})`);
+          activeCatId = categoryId;
+        } else {
+          setCategoryId(matchedCatId);
+          setCategoryName(catMatch.matchedCategory.name);
+          activeCatId = matchedCatId;
+          populatedList.push(`Category: ${catMatch.matchedCategory.pathText}`);
+        }
+      } else {
+        if (catMatch.isAmbiguous) {
+          reviewList.push(`Category: ${catMatch.matchReason}`);
+        } else if (parsed.subcategoryName || parsed.categoryName) {
+          reviewList.push(
+            `Category: "${parsed.subcategoryName || parsed.categoryName}" not matched to catalogue tree`
+          );
+        } else {
+          reviewList.push("Category: not identified in source");
+        }
+      }
+
+      // 5. Dynamic Specifications & Dropdowns for Category
+      if (activeCatId) {
+        try {
+          setLoadingAttributes(true);
+          const res = await fetch(`/api/admin/categories/${activeCatId}/attributes`);
+          if (res.ok) {
+            const json = await res.json();
+            const targetAttrs: CategoryAttributeItem[] = json.data || [];
+            setCategoryAttributes(targetAttrs);
+
+            if (targetAttrs.length > 0) {
+              const dynamicMatch = matchDynamicCategoryAttributes(
+                parsed.specifications,
+                parsed.rawSpecifications,
+                targetAttrs
+              );
+
+              setAttributeValues((prev) => {
+                const updated = { ...prev };
+                for (const [attrId, val] of Object.entries(dynamicMatch.attributeValues)) {
+                  if (
+                    overwriteManualFields ||
+                    updated[attrId] === undefined ||
+                    updated[attrId] === null ||
+                    updated[attrId] === "" ||
+                    (Array.isArray(updated[attrId]) && updated[attrId].length === 0)
+                  ) {
+                    updated[attrId] = val;
+                  }
+                }
+                return updated;
+              });
+
+              for (const pop of dynamicMatch.populatedSpecs) {
+                populatedList.push(`Spec: ${pop.attrName} (${pop.valueDisplay})`);
+              }
+
+              // Specs in source that didn't match a DB category attribute
+              for (const unmapped of dynamicMatch.unmappedSpecs) {
+                reviewList.push(
+                  `Specification "${unmapped.label}: ${unmapped.value}" retained in Product Overview (no matching category attribute)`
+                );
+              }
+            }
+          }
+        } catch (catErr) {
+          console.error("Error loading category specifications during auto-fill:", catErr);
+        } finally {
+          setLoadingAttributes(false);
+        }
+      }
+
+      setImportSummary({
+        populated: populatedList,
+        preserved: preservedList,
+        review: reviewList,
+      });
+    } catch (err: any) {
+      setImportError(err.message || "Failed to parse product information.");
+    } finally {
+      setIsAutoFilling(false);
+    }
   };
 
   // Submit Handler
@@ -519,6 +740,197 @@ export function ProductFormModal({
             </div>
           )}
 
+          {/* IMPORT PRODUCT INFORMATION (ChatGPT / Box Photo Import) */}
+          <div className="rounded-2xl border border-primary/25 bg-gradient-to-b from-primary/5 via-card to-card p-4 sm:p-5 shadow-xs space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
+                    <span>Import Product Information</span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25 lowercase tracking-normal">
+                      API-free Auto-Fill
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Paste ChatGPT-extracted box details to automatically populate product fields, category specifications, and overview tables.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopyPrompt}
+                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-background hover:bg-muted text-foreground border border-border transition flex items-center gap-1.5 shadow-2xs"
+                  title="Copy the recommended prompt to send to ChatGPT with your box photo"
+                >
+                  {promptCopied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      <span className="text-emerald-500 font-bold">Prompt Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-primary" />
+                      <span>Copy ChatGPT Prompt</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsImportExpanded(!isImportExpanded)}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition"
+                  title={isImportExpanded ? "Collapse section" : "Expand section"}
+                >
+                  {isImportExpanded ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {isImportExpanded && (
+              <div className="space-y-3.5 pt-1">
+                {/* Import Textarea */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-foreground">
+                    Paste Product Information
+                  </label>
+                  <textarea
+                    value={importText}
+                    onChange={(e) => setImportText(e.target.value)}
+                    placeholder={`Paste complete ChatGPT response here...\n\nExample:\nProduct Name: Prestige Royale Plus 3-Burner Auto Gas Stove\nBrand: Prestige\nModel Number: PR-40281\nMRP: ₹ 8,495\nCategory: Cooking Appliances > Gas Stoves\n\nSpecifications:\n- Burner Count: 3\n- Cooktop Material: Toughened Glass\n- Ignition Type: Automatic`}
+                    rows={5}
+                    className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/50 resize-y"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Pasted source text is preserved so you can reference original box details while reviewing fields below.
+                  </p>
+                </div>
+
+                {/* Action Buttons & Options */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+                  <div className="flex items-center gap-2">
+                    <label className="inline-flex items-center gap-2 text-[11px] text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={overwriteManualFields}
+                        onChange={(e) => setOverwriteManualFields(e.target.checked)}
+                        className="rounded border-border text-primary focus:ring-primary/40 w-3.5 h-3.5"
+                      />
+                      <span>Allow overwriting non-empty fields</span>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {importText && (
+                      <button
+                        type="button"
+                        onClick={handleClearImport}
+                        disabled={isAutoFilling}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition flex items-center gap-1.5"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Clear Text</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleAutoFill}
+                      disabled={!importText.trim() || isAutoFilling}
+                      className="px-4 py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition shadow-sm disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isAutoFilling ? (
+                        <span className="w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5" />
+                      )}
+                      <span>Auto-fill Fields</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Import Error */}
+                {importError && (
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <span>{importError}</span>
+                  </div>
+                )}
+
+                {/* Import Summary Results */}
+                {importSummary && (
+                  <div className="p-3.5 rounded-xl bg-card border border-border space-y-2.5 text-xs">
+                    <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                      <div className="font-bold text-foreground flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span>Auto-Fill Results</span>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">
+                        Review and edit values below before saving
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                      {/* Populated Fields */}
+                      {importSummary.populated.length > 0 && (
+                        <div className="p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20 space-y-1.5">
+                          <div className="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5">
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Populated Fields ({importSummary.populated.length})</span>
+                          </div>
+                          <ul className="space-y-1 text-[11px] text-muted-foreground list-disc pl-4">
+                            {importSummary.populated.map((item, idx) => (
+                              <li key={idx} className="leading-snug">{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Preserved Manual Fields */}
+                      {importSummary.preserved.length > 0 && (
+                        <div className="p-2.5 rounded-lg bg-blue-500/5 border border-blue-500/20 space-y-1.5">
+                          <div className="text-[11px] font-bold text-blue-400 flex items-center gap-1.5">
+                            <Info className="w-3.5 h-3.5" />
+                            <span>Preserved Existing Values ({importSummary.preserved.length})</span>
+                          </div>
+                          <ul className="space-y-1 text-[11px] text-muted-foreground list-disc pl-4">
+                            {importSummary.preserved.map((item, idx) => (
+                              <li key={idx} className="leading-snug">{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Needs Manual Review */}
+                      {importSummary.review.length > 0 && (
+                        <div className="p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1.5 md:col-span-2">
+                          <div className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            <span>Needs Manual Review ({importSummary.review.length})</span>
+                          </div>
+                          <ul className="space-y-1 text-[11px] text-muted-foreground list-disc pl-4">
+                            {importSummary.review.map((item, idx) => (
+                              <li key={idx} className="leading-snug">{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* SECTION 1: BASIC INFORMATION */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-border">
@@ -634,16 +1046,24 @@ export function ProductFormModal({
 
               {/* Description */}
               <div className="space-y-1.5 md:col-span-2">
-                <label className="block text-xs font-semibold text-foreground">
-                  Description <span className="text-muted-foreground text-[11px] font-normal">(Optional)</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-foreground">
+                    Product Overview / Description <span className="text-muted-foreground text-[11px] font-normal">(Optional)</span>
+                  </label>
+                  <span className="text-[11px] text-muted-foreground">
+                    Formatted as specification tables & feature bullets in showroom
+                  </span>
+                </div>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="e.g. Elegant black toughened glass cooktop with high efficiency brass burners and spill-proof design..."
-                  rows={2}
-                  className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60 resize-none"
+                  rows={5}
+                  className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-xs sm:text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60 resize-y"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Preserves all specifications, key features, and accessories from pasted source. Editable before saving.
+                </p>
               </div>
             </div>
           </div>

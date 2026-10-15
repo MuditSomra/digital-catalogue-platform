@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Sparkles, Package, FileText } from "lucide-react";
+import { Sparkles, Package } from "lucide-react";
 import {
   parseProductOverview,
   type ParsedProductOverview,
@@ -176,17 +176,6 @@ export function ProductOverview({ description, className = "" }: ProductOverview
               </table>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* 4. Trailing Notes / Unstructured Lines */}
-      {overview.trailingNotes && (
-        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/70 text-xs text-slate-600 leading-relaxed whitespace-pre-line space-y-1">
-          <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[11px] text-slate-700">
-            <FileText className="w-3.5 h-3.5 text-slate-500" />
-            <span>Additional Notes</span>
-          </div>
-          <p>{overview.trailingNotes}</p>
         </div>
       )}
     </div>
