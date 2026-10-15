@@ -85,6 +85,7 @@ function CustomerCatalogueContent() {
 
   // Active request tracking to cancel/ignore stale search responses
   const activeRequestRef = React.useRef<number>(0);
+  const abortControllerRef = React.useRef<AbortController | null>(null);
 
   // Comparison State (max 3 products)
   const [comparedProducts, setComparedProducts] = useState<CatalogueProductItem[]>([]);
@@ -96,6 +97,15 @@ function CustomerCatalogueContent() {
     }, 350);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // Clean up in-flight requests on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // 2. Fetch Lightweight Catalogue Categories & Brands on mount
   useEffect(() => {
@@ -122,6 +132,29 @@ function CustomerCatalogueContent() {
 
   // 3. Fetch Catalogue Products whenever debounced search or filters change
   const fetchProducts = useCallback(async () => {
+    // Range validation guard: If minimum exceeds maximum, avoid request completely
+    if (
+      minSellingPrice !== undefined &&
+      maxSellingPrice !== undefined &&
+      minSellingPrice > maxSellingPrice
+    ) {
+      return;
+    }
+    if (
+      minPriceCode !== undefined &&
+      maxPriceCode !== undefined &&
+      minPriceCode > maxPriceCode
+    ) {
+      return;
+    }
+
+    // Abort previous in-flight request if still running
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     const requestId = ++activeRequestRef.current;
     try {
       setLoading(true);
@@ -142,7 +175,9 @@ function CustomerCatalogueContent() {
         params.set("attributeFilters", JSON.stringify(attributeFilters));
       }
 
-      const res = await fetch(`/api/catalogue/products?${params.toString()}`);
+      const res = await fetch(`/api/catalogue/products?${params.toString()}`, {
+        signal: controller.signal,
+      });
       const json = await res.json();
 
       // Discard stale responses if a newer request has been triggered
@@ -161,7 +196,11 @@ function CustomerCatalogueContent() {
           setPriceCodeBounds(json.data.priceCodeRange);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        // Request was aborted by newer search/filter action; ignore safely
+        return;
+      }
       if (requestId === activeRequestRef.current) {
         console.error("Failed to fetch catalogue products:", err);
       }
@@ -187,6 +226,47 @@ function CustomerCatalogueContent() {
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+
+  // Handle browser Back / Forward navigation (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      const url = new URL(window.location.href);
+      const params = url.searchParams;
+
+      const cat = params.get("category") || "";
+      const brandsParam = params.get("brandIds");
+      const bIds = brandsParam ? brandsParam.split(",").filter(Boolean) : [];
+      const inStock = params.get("inStockOnly") !== "false";
+      const s = params.get("search") || "";
+
+      const minCodeParam = params.get("minPriceCode");
+      const maxCodeParam = params.get("maxPriceCode");
+      const minC = minCodeParam && !isNaN(Number(minCodeParam)) ? Number(minCodeParam) : undefined;
+      const maxC = maxCodeParam && !isNaN(Number(maxCodeParam)) ? Number(maxCodeParam) : undefined;
+      const hasCode = minC !== undefined || maxC !== undefined;
+
+      const minSParam = params.get("minSellingPrice") || params.get("minPrice");
+      const maxSParam = params.get("maxSellingPrice") || params.get("maxPrice");
+      const minS = !hasCode && minSParam && !isNaN(Number(minSParam)) ? Number(minSParam) : undefined;
+      const maxS = !hasCode && maxSParam && !isNaN(Number(maxSParam)) ? Number(maxSParam) : undefined;
+
+      const pg = params.get("page") ? parseInt(params.get("page")!, 10) : 1;
+
+      setSelectedCategoryId(cat);
+      setSelectedBrandIds(bIds);
+      setInStockOnly(inStock);
+      setSearch(s);
+      setDebouncedSearch(s);
+      setMinSellingPrice(minS);
+      setMaxSellingPrice(maxS);
+      setMinPriceCode(minC);
+      setMaxPriceCode(maxC);
+      setCurrentPage(pg);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   // Synchronize filter state with browser URL search parameters
   useEffect(() => {
@@ -251,7 +331,9 @@ function CustomerCatalogueContent() {
 
     const newSearch = url.searchParams.toString();
     const newUrl = url.pathname + (newSearch ? `?${newSearch}` : "");
-    window.history.replaceState(null, "", newUrl);
+    if (window.location.pathname + window.location.search !== newUrl) {
+      window.history.replaceState(null, "", newUrl);
+    }
   }, [
     selectedCategoryId,
     selectedBrandIds,

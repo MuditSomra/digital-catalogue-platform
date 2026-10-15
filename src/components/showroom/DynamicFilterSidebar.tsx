@@ -14,6 +14,7 @@ import {
   PackageCheck,
   Sparkles,
   X,
+  AlertCircle,
 } from "lucide-react";
 import { CascadingCategorySelect } from "@/components/ui/CascadingCategorySelect";
 import type {
@@ -89,6 +90,145 @@ export function DynamicFilterSidebar({
 
   const effSellingBounds = sellingPriceRange || priceRange || { min: 0, max: 100000 };
   const effPriceCodeBounds = priceCodeRange || { min: 0, max: 10000 };
+
+  // Local state for Selling Price inputs
+  const [localMinSelling, setLocalMinSelling] = React.useState<string>(
+    effMinSelling !== undefined ? String(effMinSelling) : ""
+  );
+  const [localMaxSelling, setLocalMaxSelling] = React.useState<string>(
+    effMaxSelling !== undefined ? String(effMaxSelling) : ""
+  );
+
+  // Local state for Price Code inputs
+  const [localMinCode, setLocalMinCode] = React.useState<string>(
+    minPriceCode !== undefined ? String(minPriceCode) : ""
+  );
+  const [localMaxCode, setLocalMaxCode] = React.useState<string>(
+    maxPriceCode !== undefined ? String(maxPriceCode) : ""
+  );
+
+  // Synchronize local states when props change externally (initial URL, Clear All, or mutual clearing)
+  React.useEffect(() => {
+    setLocalMinSelling(effMinSelling !== undefined ? String(effMinSelling) : "");
+    setLocalMaxSelling(effMaxSelling !== undefined ? String(effMaxSelling) : "");
+  }, [effMinSelling, effMaxSelling]);
+
+  React.useEffect(() => {
+    setLocalMinCode(minPriceCode !== undefined ? String(minPriceCode) : "");
+    setLocalMaxCode(maxPriceCode !== undefined ? String(maxPriceCode) : "");
+  }, [minPriceCode, maxPriceCode]);
+
+  // Validation calculations
+  const sellingMinNum = localMinSelling.trim() !== "" ? Number(localMinSelling) : undefined;
+  const sellingMaxNum = localMaxSelling.trim() !== "" ? Number(localMaxSelling) : undefined;
+  const isSellingNegative =
+    (sellingMinNum !== undefined && sellingMinNum < 0) ||
+    (sellingMaxNum !== undefined && sellingMaxNum < 0);
+  const isSellingInverted =
+    sellingMinNum !== undefined && sellingMaxNum !== undefined && sellingMinNum > sellingMaxNum;
+  const isSellingInvalid =
+    isSellingNegative ||
+    isSellingInverted ||
+    (sellingMinNum !== undefined && isNaN(sellingMinNum)) ||
+    (sellingMaxNum !== undefined && isNaN(sellingMaxNum));
+  const sellingValidationError = isSellingInverted
+    ? "Min price cannot exceed Max"
+    : isSellingNegative
+    ? "Price cannot be negative"
+    : null;
+
+  const codeMinNum = localMinCode.trim() !== "" ? Number(localMinCode) : undefined;
+  const codeMaxNum = localMaxCode.trim() !== "" ? Number(localMaxCode) : undefined;
+  const isCodeNegative =
+    (codeMinNum !== undefined && codeMinNum < 0) ||
+    (codeMaxNum !== undefined && codeMaxNum < 0);
+  const isCodeInverted =
+    codeMinNum !== undefined && codeMaxNum !== undefined && codeMinNum > codeMaxNum;
+  const isCodeInvalid =
+    isCodeNegative ||
+    isCodeInverted ||
+    (codeMinNum !== undefined && isNaN(codeMinNum)) ||
+    (codeMaxNum !== undefined && isNaN(codeMaxNum));
+  const codeValidationError = isCodeInverted
+    ? "Min code cannot exceed Max"
+    : isCodeNegative
+    ? "Code cannot be negative"
+    : null;
+
+  // Input change handlers: ONLY update local React state. Absolutely NO API request until Apply is clicked!
+  const handleSellingMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalMinSelling(e.target.value);
+    // When editing Selling Price, clear local Price Code inputs without sending an API request
+    if (localMinCode !== "" || localMaxCode !== "") {
+      setLocalMinCode("");
+      setLocalMaxCode("");
+    }
+  };
+
+  const handleSellingMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalMaxSelling(e.target.value);
+    // When editing Selling Price, clear local Price Code inputs without sending an API request
+    if (localMinCode !== "" || localMaxCode !== "") {
+      setLocalMinCode("");
+      setLocalMaxCode("");
+    }
+  };
+
+  const handleCodeMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalMinCode(e.target.value);
+    // When editing Price Code, clear local Selling Price inputs without sending an API request
+    if (localMinSelling !== "" || localMaxSelling !== "") {
+      setLocalMinSelling("");
+      setLocalMaxSelling("");
+    }
+  };
+
+  const handleCodeMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalMaxCode(e.target.value);
+    // When editing Price Code, clear local Selling Price inputs without sending an API request
+    if (localMinSelling !== "" || localMaxSelling !== "") {
+      setLocalMinSelling("");
+      setLocalMaxSelling("");
+    }
+  };
+
+  // Apply handlers: Validate and apply the completed range, triggering exactly one products request
+  const handleApplySelling = () => {
+    if (isSellingInvalid) return;
+
+    const minVal = localMinSelling.trim() !== "" ? Number(localMinSelling) : undefined;
+    const maxVal = localMaxSelling.trim() !== "" ? Number(localMaxSelling) : undefined;
+
+    // Avoid duplicate request if values are identical to current applied values
+    if (minVal === effMinSelling && maxVal === effMaxSelling && !isPriceCodeActive) return;
+
+    onSellingPriceChange(minVal, maxVal);
+  };
+
+  const handleApplyPriceCode = () => {
+    if (isCodeInvalid) return;
+
+    const minVal = localMinCode.trim() !== "" ? Number(localMinCode) : undefined;
+    const maxVal = localMaxCode.trim() !== "" ? Number(localMaxCode) : undefined;
+
+    // Avoid duplicate request if values are identical to current applied values
+    if (minVal === minPriceCode && maxVal === maxPriceCode && !isSellingPriceActive) return;
+
+    onPriceCodeChange(minVal, maxVal);
+  };
+
+  // Explicit clear handlers: Reset the filter and fetch updated results once
+  const handleClearSelling = () => {
+    setLocalMinSelling("");
+    setLocalMaxSelling("");
+    onSellingPriceChange(undefined, undefined);
+  };
+
+  const handleClearPriceCode = () => {
+    setLocalMinCode("");
+    setLocalMaxCode("");
+    onPriceCodeChange(undefined, undefined);
+  };
 
   const hasActiveFilters =
     Boolean(selectedCategoryId) ||
@@ -230,7 +370,7 @@ export function DynamicFilterSidebar({
                   </span>
                   <button
                     type="button"
-                    onClick={() => onSellingPriceChange(undefined, undefined)}
+                    onClick={handleClearSelling}
                     className="text-[10px] text-slate-400 hover:text-slate-600 underline font-medium"
                   >
                     Clear
@@ -245,21 +385,19 @@ export function DynamicFilterSidebar({
               <input
                 id="filter-selling-price-min"
                 type="number"
-                value={effMinSelling !== undefined ? effMinSelling : ""}
-                onFocus={() => {
-                  if (isPriceCodeActive) {
-                    onPriceCodeChange(undefined, undefined);
+                value={localMinSelling}
+                onChange={handleSellingMinChange}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleApplySelling();
                   }
-                }}
-                onChange={(e) => {
-                  const val = e.target.value !== "" ? Number(e.target.value) : undefined;
-                  if (isPriceCodeActive) {
-                    onPriceCodeChange(undefined, undefined);
-                  }
-                  onSellingPriceChange(val, effMaxSelling);
                 }}
                 placeholder={`₹${effSellingBounds.min}`}
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition"
+                className={`w-full px-2.5 py-1.5 bg-white border rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 transition ${
+                  isSellingInverted || (sellingMinNum !== undefined && sellingMinNum < 0)
+                    ? "border-red-300 focus:ring-red-100 focus:border-red-500"
+                    : "border-slate-200 focus:ring-blue-100 focus:border-blue-600"
+                }`}
               />
             </div>
             <div>
@@ -267,24 +405,42 @@ export function DynamicFilterSidebar({
               <input
                 id="filter-selling-price-max"
                 type="number"
-                value={effMaxSelling !== undefined ? effMaxSelling : ""}
-                onFocus={() => {
-                  if (isPriceCodeActive) {
-                    onPriceCodeChange(undefined, undefined);
+                value={localMaxSelling}
+                onChange={handleSellingMaxChange}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleApplySelling();
                   }
-                }}
-                onChange={(e) => {
-                  const val = e.target.value !== "" ? Number(e.target.value) : undefined;
-                  if (isPriceCodeActive) {
-                    onPriceCodeChange(undefined, undefined);
-                  }
-                  onSellingPriceChange(effMinSelling, val);
                 }}
                 placeholder={`₹${effSellingBounds.max}`}
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition"
+                className={`w-full px-2.5 py-1.5 bg-white border rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 transition ${
+                  isSellingInverted || (sellingMaxNum !== undefined && sellingMaxNum < 0)
+                    ? "border-red-300 focus:ring-red-100 focus:border-red-500"
+                    : "border-slate-200 focus:ring-blue-100 focus:border-blue-600"
+                }`}
               />
             </div>
           </div>
+
+          {sellingValidationError && (
+            <p className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1.5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{sellingValidationError}</span>
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={handleApplySelling}
+            disabled={isSellingInvalid}
+            className={`w-full mt-2.5 py-1.5 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-2xs ${
+              isSellingInvalid
+                ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                : "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+            }`}
+          >
+            <span>Apply Selling Price</span>
+          </button>
         </div>
 
         {/* 4B. Price Code Range */}
@@ -308,7 +464,7 @@ export function DynamicFilterSidebar({
                   </span>
                   <button
                     type="button"
-                    onClick={() => onPriceCodeChange(undefined, undefined)}
+                    onClick={handleClearPriceCode}
                     className="text-[10px] text-slate-400 hover:text-slate-600 underline font-medium"
                   >
                     Clear
@@ -323,21 +479,19 @@ export function DynamicFilterSidebar({
               <input
                 id="filter-price-code-min"
                 type="number"
-                value={minPriceCode !== undefined ? minPriceCode : ""}
-                onFocus={() => {
-                  if (isSellingPriceActive) {
-                    onSellingPriceChange(undefined, undefined);
+                value={localMinCode}
+                onChange={handleCodeMinChange}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleApplyPriceCode();
                   }
-                }}
-                onChange={(e) => {
-                  const val = e.target.value !== "" ? Number(e.target.value) : undefined;
-                  if (isSellingPriceActive) {
-                    onSellingPriceChange(undefined, undefined);
-                  }
-                  onPriceCodeChange(val, maxPriceCode);
                 }}
                 placeholder={effPriceCodeBounds.min ? String(effPriceCodeBounds.min) : "Min"}
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition"
+                className={`w-full px-2.5 py-1.5 bg-white border rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 transition ${
+                  isCodeInverted || (codeMinNum !== undefined && codeMinNum < 0)
+                    ? "border-red-300 focus:ring-red-100 focus:border-red-500"
+                    : "border-slate-200 focus:ring-blue-100 focus:border-blue-600"
+                }`}
               />
             </div>
             <div>
@@ -345,24 +499,42 @@ export function DynamicFilterSidebar({
               <input
                 id="filter-price-code-max"
                 type="number"
-                value={maxPriceCode !== undefined ? maxPriceCode : ""}
-                onFocus={() => {
-                  if (isSellingPriceActive) {
-                    onSellingPriceChange(undefined, undefined);
+                value={localMaxCode}
+                onChange={handleCodeMaxChange}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleApplyPriceCode();
                   }
-                }}
-                onChange={(e) => {
-                  const val = e.target.value !== "" ? Number(e.target.value) : undefined;
-                  if (isSellingPriceActive) {
-                    onSellingPriceChange(undefined, undefined);
-                  }
-                  onPriceCodeChange(minPriceCode, val);
                 }}
                 placeholder={effPriceCodeBounds.max ? String(effPriceCodeBounds.max) : "Max"}
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition"
+                className={`w-full px-2.5 py-1.5 bg-white border rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 transition ${
+                  isCodeInverted || (codeMaxNum !== undefined && codeMaxNum < 0)
+                    ? "border-red-300 focus:ring-red-100 focus:border-red-500"
+                    : "border-slate-200 focus:ring-blue-100 focus:border-blue-600"
+                }`}
               />
             </div>
           </div>
+
+          {codeValidationError && (
+            <p className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1.5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{codeValidationError}</span>
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={handleApplyPriceCode}
+            disabled={isCodeInvalid}
+            className={`w-full mt-2.5 py-1.5 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-2xs ${
+              isCodeInvalid
+                ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                : "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+            }`}
+          >
+            <span>Apply Price Code</span>
+          </button>
         </div>
       </div>
 

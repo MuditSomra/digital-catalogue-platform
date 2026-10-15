@@ -429,6 +429,71 @@ async function runTestSuite() {
       "Price Code takes precedence and filters by price code when both are provided"
     );
 
+    // --------------------------------------------------------------------------
+    // 9. SINGLE BOUND, EXACT MATCH, AND INVERTED RANGE BOUNDARIES
+    // --------------------------------------------------------------------------
+    console.log("\n--- 9. Single Bound, Exact Match & Boundary Tests ---");
+
+    // Single bound: Min only
+    const minOnlyResult = await getCatalogueProducts({
+      minPriceCode: 1500,
+      sortBy: "price_asc",
+      limit: 20,
+    });
+    const minOnlyValidCodes = minOnlyResult.products
+      .map((p) => parsePriceCodeNumeric(p.privatePriceCode))
+      .filter((v): v is number => v !== null);
+    assert(
+      minOnlyValidCodes.every((c) => c >= 1500),
+      "Single bound (minPriceCode: 1500) only includes products with price code >= 1500"
+    );
+
+    // Single bound: Max only
+    const maxOnlyResult = await getCatalogueProducts({
+      maxPriceCode: 500,
+      sortBy: "price_asc",
+      limit: 20,
+    });
+    const maxOnlyValidCodes = maxOnlyResult.products
+      .map((p) => parsePriceCodeNumeric(p.privatePriceCode))
+      .filter((v): v is number => v !== null);
+    assert(
+      maxOnlyValidCodes.every((c) => c <= 500),
+      "Single bound (maxPriceCode: 500) only includes products with price code <= 500"
+    );
+
+    // Exact match: Min === Max
+    const exactMatchResult = await getCatalogueProducts({
+      minPriceCode: 693,
+      maxPriceCode: 693,
+      sortBy: "price_asc",
+      limit: 20,
+    });
+    const exactMatchCodes = exactMatchResult.products
+      .map((p) => p.privatePriceCode)
+      .filter((c) => parsePriceCodeNumeric(c) !== null);
+    assert(
+      exactMatchCodes.length === 1 && exactMatchCodes[0] === "693",
+      "Exact match (min: 693, max: 693) returns only product with price code '693'",
+      `Returned matching codes: ${JSON.stringify(exactMatchCodes)}`
+    );
+
+    // Inverted bounds at database level: min > max produces 0 matching products
+    const invertedResult = await getCatalogueProducts({
+      minPriceCode: 1500,
+      maxPriceCode: 800,
+      sortBy: "price_asc",
+      limit: 20,
+    });
+    const invertedMatching = invertedResult.products.filter(
+      (p) => parsePriceCodeNumeric(p.privatePriceCode) !== null
+    );
+    assert(
+      invertedMatching.length === 0,
+      "Inverted range (min 1500 > max 800) matches 0 products",
+      `Matching count: ${invertedMatching.length}`
+    );
+
     console.log("\n============================================================");
     console.log(`ALL TESTS PASSED! (${passedTests}/${totalTests} tests)`);
     console.log("============================================================\n");
