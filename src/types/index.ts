@@ -330,6 +330,13 @@ export interface InventoryListItem {
     quantity: number;
     createdAt: Date;
   } | null;
+  primaryImage?: {
+    id: string;
+    productId?: string;
+    url: string;
+    altText: string | null;
+    isPrimary?: boolean;
+  } | null;
 }
 
 export interface InventoryMovementRecord {

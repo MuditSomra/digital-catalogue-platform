@@ -105,6 +105,17 @@ export async function getInventoryList(
           createdAt: true,
         },
       },
+      images: {
+        orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
+        take: 1,
+        select: {
+          id: true,
+          productId: true,
+          url: true,
+          altText: true,
+          isPrimary: true,
+        },
+      },
     },
     orderBy: [
       { name: "asc" },
@@ -133,6 +144,7 @@ export async function getInventoryList(
       stockStatus: status,
       updatedAt: p.inventory ? p.inventory.updatedAt : p.createdAt,
       lastMovement: p.inventoryMovements[0] || null,
+      primaryImage: p.images && p.images.length > 0 ? p.images[0] : null,
     };
   });
 

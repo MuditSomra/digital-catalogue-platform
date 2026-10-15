@@ -451,9 +451,9 @@ export default function ProductDetailPage({
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
                   {product.discountPercent !== null && product.discountPercent > 0 && (
-                    <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-emerald-100 text-emerald-800">
+                    <span className="inline-flex items-center min-h-[34px] sm:min-h-[36px] px-3 py-1 rounded-lg text-xs sm:text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-200/80 shadow-2xs shrink-0">
                       {product.discountPercent}% OFF
                     </span>
                   )}
@@ -462,21 +462,24 @@ export default function ProductDetailPage({
                     <button
                       type="button"
                       onClick={handleCopyPriceCode}
-                      className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-white text-slate-700 border border-slate-200 hover:border-slate-300 flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                      className="inline-flex items-center min-h-[34px] sm:min-h-[36px] px-3 py-1 rounded-lg bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition shadow-2xs cursor-pointer group gap-1.5 shrink-0"
                       title="Click to copy price code"
                     >
-                      <span>Code: {product.privatePriceCode}</span>
+                      <span className="text-xs sm:text-sm font-semibold text-slate-500">Code:</span>
+                      <span className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+                        {product.privatePriceCode}
+                      </span>
                       {copiedCode ? (
-                        <Check className="w-3 h-3 text-emerald-600" />
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 ml-0.5" />
                       ) : (
-                        <Copy className="w-3 h-3 text-slate-400" />
+                        <Copy className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition shrink-0 ml-0.5" />
                       )}
                     </button>
                   )}
 
                   {product.warranty && (
-                    <span className="px-2.5 py-0.5 rounded-md text-xs font-medium bg-white text-slate-700 border border-slate-200 flex items-center gap-1.5 shadow-2xs">
-                      <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                    <span className="inline-flex items-center min-h-[34px] sm:min-h-[36px] px-3 py-1 rounded-lg bg-white text-slate-700 border border-slate-200 gap-1.5 shadow-2xs text-xs sm:text-sm font-medium">
+                      <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
                       <span>{product.warranty}</span>
                     </span>
                   )}

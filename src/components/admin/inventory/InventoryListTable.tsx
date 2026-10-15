@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Image as ImageIcon,
 } from "lucide-react";
 import {
   InventoryListItem,
@@ -26,6 +27,57 @@ import {
   FlatCategoryOption,
 } from "@/types";
 import { CascadingCategorySelect } from "@/components/ui/CascadingCategorySelect";
+import { getOptimizedImageUrl, IMAGE_PROFILES } from "@/lib/cloudinary-url";
+
+interface ProductThumbnailProps {
+  imageUrl?: string | null;
+  altText?: string | null;
+  onClick?: () => void;
+  size?: "desktop" | "mobile";
+}
+
+function ProductThumbnail({
+  imageUrl,
+  altText,
+  onClick,
+  size = "desktop",
+}: ProductThumbnailProps) {
+  const [hasError, setHasError] = React.useState(false);
+  const isDesktop = size === "desktop";
+
+  return (
+    <div
+      onClick={onClick}
+      className={
+        isDesktop
+          ? "w-10 h-10 shrink-0 rounded-xl bg-muted/40 border border-border overflow-hidden flex items-center justify-center relative cursor-pointer group/thumb hover:border-primary/50 transition"
+          : "w-12 h-12 shrink-0 rounded-xl bg-muted/40 border border-border overflow-hidden flex items-center justify-center cursor-pointer"
+      }
+      title={isDesktop ? "Click to manage stock" : undefined}
+    >
+      {imageUrl && !hasError ? (
+        <img
+          src={getOptimizedImageUrl(imageUrl, IMAGE_PROFILES.thumbnail)}
+          alt={altText || "Product"}
+          className={
+            isDesktop
+              ? "w-full h-full object-contain p-1 group-hover/thumb:scale-105 transition"
+              : "w-full h-full object-contain p-1"
+          }
+          onError={() => setHasError(true)}
+        />
+      ) : (
+        <ImageIcon
+          className={
+            isDesktop
+              ? "w-4 h-4 text-muted-foreground/40"
+              : "w-5 h-5 text-muted-foreground/40"
+          }
+        />
+      )}
+    </div>
+  );
+}
 
 interface InventoryListTableProps {
   items: InventoryListItem[];
@@ -224,15 +276,27 @@ export function InventoryListTable({
                       key={item.productId}
                       className="hover:bg-muted/20 transition-colors group"
                     >
-                      {/* Product Name */}
-                      <td className="py-3.5 px-4 font-medium text-foreground max-w-[240px]">
-                        <button
-                          type="button"
-                          onClick={() => onManageInventory(item)}
-                          className="text-left font-semibold text-foreground hover:text-primary transition line-clamp-2"
-                        >
-                          {item.productName}
-                        </button>
+                      {/* Product Name & Thumbnail */}
+                      <td className="py-3.5 px-4 font-medium text-foreground max-w-[280px]">
+                        <div className="flex items-center gap-3">
+                          {/* Product Thumbnail */}
+                          <ProductThumbnail
+                            imageUrl={item.primaryImage?.url}
+                            altText={item.primaryImage?.altText || item.productName}
+                            onClick={() => onManageInventory(item)}
+                            size="desktop"
+                          />
+
+                          <div className="min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => onManageInventory(item)}
+                              className="text-left font-semibold text-foreground hover:text-primary transition line-clamp-2 text-xs leading-snug"
+                            >
+                              {item.productName}
+                            </button>
+                          </div>
+                        </div>
                       </td>
 
                       {/* Brand */}
@@ -339,15 +403,26 @@ export function InventoryListTable({
                 key={item.productId}
                 className="p-4 bg-card border border-border rounded-2xl shadow-xs space-y-3"
               >
-                {/* Header */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-0.5">
+                {/* Header: Thumbnail, Title, SKU & Status */}
+                <div className="flex items-start gap-3">
+                  {/* Thumbnail */}
+                  <ProductThumbnail
+                    imageUrl={item.primaryImage?.url}
+                    altText={item.primaryImage?.altText || item.productName}
+                    onClick={() => onManageInventory(item)}
+                    size="mobile"
+                  />
+
+                  <div className="space-y-0.5 min-w-0 flex-1">
                     <div className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
                       <span>{item.brand.name}</span>
                       <span>&bull;</span>
                       <span>{item.category.name}</span>
                     </div>
-                    <h4 className="text-sm font-bold text-foreground leading-snug">
+                    <h4
+                      onClick={() => onManageInventory(item)}
+                      className="text-sm font-bold text-foreground leading-snug line-clamp-2 cursor-pointer hover:text-primary transition"
+                    >
                       {item.productName}
                     </h4>
                     <div className="text-[11px] font-mono text-muted-foreground">
@@ -356,7 +431,7 @@ export function InventoryListTable({
                   </div>
 
                   {/* Status Badge */}
-                  <div>
+                  <div className="shrink-0">
                     {item.stockStatus === "IN_STOCK" && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                         In Stock

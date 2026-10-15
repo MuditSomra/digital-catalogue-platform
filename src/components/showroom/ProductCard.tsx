@@ -207,18 +207,19 @@ export function ProductCard({
               )}
             </div>
 
-            <div className="flex items-center gap-1.5 mt-1 min-h-[20px]">
+            <div className="flex flex-wrap items-center gap-1.5 mt-1.5 min-h-[26px]">
               {/* Discount Percentage Badge */}
               {product.discountPercent !== null && product.discountPercent > 0 && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 shrink-0">
+                <span className="inline-flex items-center min-h-[26px] px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200/80 shrink-0">
                   {product.discountPercent}% OFF
                 </span>
               )}
 
               {/* Customer-Visible Price Code */}
               {product.privatePriceCode && (
-                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/60 shrink-0 truncate max-w-[120px]">
-                  Code: {product.privatePriceCode}
+                <span className="inline-flex items-center min-h-[26px] gap-1 text-slate-500 bg-slate-100 px-2 sm:px-2.5 py-0.5 rounded-md border border-slate-200/80 shrink-0 whitespace-nowrap">
+                  <span className="text-[11px] sm:text-xs font-semibold text-slate-500">Code:</span>
+                  <span className="text-xs sm:text-sm font-bold text-slate-800">{product.privatePriceCode}</span>
                 </span>
               )}
             </div>
