@@ -628,9 +628,26 @@ export async function getCatalogueProductDetail(
     };
   });
 
+  const parentId = product.category.parentId;
+  const currentCategoryId = product.categoryId;
+  const siblingCategoryIds = parentId
+    ? allCategories
+        .filter(
+          (c) =>
+            (c.id === parentId || c.parentId === parentId) &&
+            c.id !== currentCategoryId
+        )
+        .map((c) => c.id)
+    : [];
+
   const similarProducts = await timeOperation(
     "service_similar_products",
-    () => getSimilarProducts(product.id, 8),
+    () =>
+      getSimilarProducts(product.id, 8, {
+        categoryId: product.categoryId,
+        parentId,
+        siblingCategoryIds,
+      }),
     "Similar Products Service Total"
   );
 
@@ -688,25 +705,47 @@ export async function getCatalogueProductDetail(
  *
  * Performance-optimized: selects lightweight card fields and primary images only.
  */
+export interface SimilarProductsOptions {
+  categoryId?: string;
+  parentId?: string | null;
+  siblingCategoryIds?: string[];
+}
+
 export async function getSimilarProducts(
   productId: string,
-  limit = 8
+  limit = 8,
+  options?: SimilarProductsOptions
 ): Promise<CatalogueProductItem[]> {
-  const currentProduct = await timeOperation(
-    "db_similar_lookup_current",
-    () =>
-      prisma.product.findUnique({
-        where: { id: productId },
-        select: {
-          id: true,
-          categoryId: true,
-          category: { select: { parentId: true } },
-        },
-      }),
-    "Lookup Current Product Category"
-  );
+  let categoryId: string;
+  let parentId: string | null = null;
 
-  if (!currentProduct) return [];
+  if (options?.categoryId) {
+    categoryId = options.categoryId;
+    parentId = options.parentId !== undefined ? options.parentId : null;
+    getActiveTiming()?.record(
+      "db_similar_lookup_current",
+      0,
+      "Lookup Current Product Category (Reused from Main)"
+    );
+  } else {
+    const currentProduct = await timeOperation(
+      "db_similar_lookup_current",
+      () =>
+        prisma.product.findUnique({
+          where: { id: productId },
+          select: {
+            id: true,
+            categoryId: true,
+            category: { select: { parentId: true } },
+          },
+        }),
+      "Lookup Current Product Category"
+    );
+
+    if (!currentProduct) return [];
+    categoryId = currentProduct.categoryId;
+    parentId = currentProduct.category.parentId;
+  }
 
   const foundProductIds = new Set<string>([productId]);
   const rawSimilarList: any[] = [];
@@ -767,7 +806,7 @@ export async function getSimilarProducts(
     () =>
       prisma.product.findMany({
         where: {
-          categoryId: currentProduct.categoryId,
+          categoryId,
           id: { not: productId },
           isActive: true,
         },
@@ -784,32 +823,46 @@ export async function getSimilarProducts(
   }
 
   // 2. If fewer than limit and parent category exists, fill remaining from same parent category / siblings
-  const parentId = currentProduct.category.parentId;
   if (rawSimilarList.length < limit && parentId) {
     const remainingCount = limit - rawSimilarList.length;
-    const siblingCategoryProducts = await timeOperation(
-      "db_similar_parent_cat",
-      () =>
-        prisma.product.findMany({
-          where: {
-            id: { notIn: Array.from(foundProductIds) },
-            isActive: true,
-            OR: [
-              { categoryId: parentId },
-              { category: { parentId: parentId } },
-            ],
-          },
-          take: remainingCount,
-          orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
-          select: similarSelect,
-        }),
-      "Query Similar Products (Parent/Sibling Category)"
-    );
 
-    for (const p of siblingCategoryProducts) {
-      if (!foundProductIds.has(p.id)) {
-        foundProductIds.add(p.id);
-        rawSimilarList.push(p);
+    // Resolve sibling category IDs: either from provided authoritative list or query
+    let targetCategoryIds: string[];
+    if (options?.siblingCategoryIds !== undefined) {
+      targetCategoryIds = options.siblingCategoryIds.filter((id) => id !== categoryId);
+    } else {
+      const siblingCategories = await prisma.category.findMany({
+        where: {
+          OR: [{ id: parentId }, { parentId }],
+          id: { not: categoryId },
+        },
+        select: { id: true },
+      });
+      targetCategoryIds = siblingCategories.map((c) => c.id);
+    }
+
+    if (targetCategoryIds.length > 0) {
+      const siblingCategoryProducts = await timeOperation(
+        "db_similar_parent_cat",
+        () =>
+          prisma.product.findMany({
+            where: {
+              id: { notIn: Array.from(foundProductIds) },
+              isActive: true,
+              categoryId: { in: targetCategoryIds },
+            },
+            take: remainingCount,
+            orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
+            select: similarSelect,
+          }),
+        "Query Similar Products (Parent/Sibling Category)"
+      );
+
+      for (const p of siblingCategoryProducts) {
+        if (!foundProductIds.has(p.id)) {
+          foundProductIds.add(p.id);
+          rawSimilarList.push(p);
+        }
       }
     }
   }
