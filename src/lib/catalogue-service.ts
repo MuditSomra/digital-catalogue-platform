@@ -497,74 +497,91 @@ export async function getCatalogueProductDetail(
 ): Promise<CatalogueProductItem | null> {
   const isCuid = idOrSlug.startsWith("c") && idOrSlug.length > 20;
 
-  const product = await prisma.product.findFirst({
-    where: {
-      OR: [
-        { id: isCuid ? idOrSlug : undefined },
-        { slug: idOrSlug },
-        { sku: idOrSlug },
-      ],
-      isActive: true,
-    },
-    include: {
-      brand: {
-        select: { id: true, name: true, slug: true, logoUrl: true },
-      },
-      category: {
-        select: { id: true, name: true, slug: true, parentId: true },
-      },
-      inventory: {
-        select: { id: true, quantity: true, lowStockThreshold: true },
-      },
-      images: {
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-      },
-      videos: {
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-      },
-      attributeValues: {
+  const product = await timeOperation(
+    "db_main_product",
+    () =>
+      prisma.product.findFirst({
+        where: {
+          OR: [
+            { id: isCuid ? idOrSlug : undefined },
+            { slug: idOrSlug },
+            { sku: idOrSlug },
+          ],
+          isActive: true,
+        },
         include: {
-          attribute: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-              type: true,
-              unit: true,
+          brand: {
+            select: { id: true, name: true, slug: true, logoUrl: true },
+          },
+          category: {
+            select: { id: true, name: true, slug: true, parentId: true },
+          },
+          inventory: {
+            select: { id: true, quantity: true, lowStockThreshold: true },
+          },
+          images: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          },
+          videos: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          },
+          attributeValues: {
+            include: {
+              attribute: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  type: true,
+                  unit: true,
+                },
+              },
             },
           },
         },
-      },
-    },
-  });
+      }),
+    "Query Main Product with Media & Relations"
+  );
 
   if (!product) return null;
 
   // Build breadcrumbs in memory
-  const allCategories = await prisma.category.findMany({
-    select: { id: true, name: true, slug: true, parentId: true },
-  });
-  const catMap = new Map(allCategories.map((c) => [c.id, c]));
+  const allCategories = await timeOperation(
+    "db_breadcrumbs_categories",
+    () =>
+      prisma.category.findMany({
+        select: { id: true, name: true, slug: true, parentId: true },
+      }),
+    "Query Categories for Breadcrumbs"
+  );
 
-  const breadcrumbs: CategoryBreadcrumb[] = [];
-  let currentParentId = product.category.parentId;
-  const visited = new Set<string>();
+  const breadcrumbs: CategoryBreadcrumb[] = await timeOperation(
+    "build_breadcrumbs",
+    () => {
+      const catMap = new Map(allCategories.map((c) => [c.id, c]));
+      const crumbs: CategoryBreadcrumb[] = [];
+      let currentParentId = product.category.parentId;
+      const visited = new Set<string>();
 
-  while (currentParentId && !visited.has(currentParentId)) {
-    visited.add(currentParentId);
-    const parent = catMap.get(currentParentId);
-    if (parent) {
-      breadcrumbs.unshift({ id: parent.id, name: parent.name, slug: parent.slug });
-      currentParentId = parent.parentId;
-    } else {
-      break;
-    }
-  }
-  breadcrumbs.push({
-    id: product.category.id,
-    name: product.category.name,
-    slug: product.category.slug,
-  });
+      while (currentParentId && !visited.has(currentParentId)) {
+        visited.add(currentParentId);
+        const parent = catMap.get(currentParentId);
+        if (parent) {
+          crumbs.unshift({ id: parent.id, name: parent.name, slug: parent.slug });
+          currentParentId = parent.parentId;
+        } else {
+          break;
+        }
+      }
+      crumbs.push({
+        id: product.category.id,
+        name: product.category.name,
+        slug: product.category.slug,
+      });
+      return crumbs;
+    },
+    "Build Breadcrumbs Hierarchy in Memory"
+  );
 
   const mrp = Number(product.mrp);
   const sellingPrice = product.sellingPrice != null ? Number(product.sellingPrice) : null;
@@ -611,6 +628,12 @@ export async function getCatalogueProductDetail(
     };
   });
 
+  const similarProducts = await timeOperation(
+    "service_similar_products",
+    () => getSimilarProducts(product.id, 8),
+    "Similar Products Service Total"
+  );
+
   return {
     id: product.id,
     name: product.name,
@@ -653,7 +676,7 @@ export async function getCatalogueProductDetail(
       numericValue: av.numericValue,
       booleanValue: av.booleanValue,
     })),
-    similarProducts: await getSimilarProducts(product.id, 8),
+    similarProducts,
   };
 }
 
@@ -669,14 +692,19 @@ export async function getSimilarProducts(
   productId: string,
   limit = 8
 ): Promise<CatalogueProductItem[]> {
-  const currentProduct = await prisma.product.findUnique({
-    where: { id: productId },
-    select: {
-      id: true,
-      categoryId: true,
-      category: { select: { parentId: true } },
-    },
-  });
+  const currentProduct = await timeOperation(
+    "db_similar_lookup_current",
+    () =>
+      prisma.product.findUnique({
+        where: { id: productId },
+        select: {
+          id: true,
+          categoryId: true,
+          category: { select: { parentId: true } },
+        },
+      }),
+    "Lookup Current Product Category"
+  );
 
   if (!currentProduct) return [];
 
@@ -734,16 +762,21 @@ export async function getSimilarProducts(
   };
 
   // 1. Same subcategory products
-  const sameCategoryProducts = await prisma.product.findMany({
-    where: {
-      categoryId: currentProduct.categoryId,
-      id: { not: productId },
-      isActive: true,
-    },
-    take: limit,
-    orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
-    select: similarSelect,
-  });
+  const sameCategoryProducts = await timeOperation(
+    "db_similar_same_subcat",
+    () =>
+      prisma.product.findMany({
+        where: {
+          categoryId: currentProduct.categoryId,
+          id: { not: productId },
+          isActive: true,
+        },
+        take: limit,
+        orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
+        select: similarSelect,
+      }),
+    "Query Similar Products (Same Subcategory)"
+  );
 
   for (const p of sameCategoryProducts) {
     foundProductIds.add(p.id);
@@ -754,19 +787,24 @@ export async function getSimilarProducts(
   const parentId = currentProduct.category.parentId;
   if (rawSimilarList.length < limit && parentId) {
     const remainingCount = limit - rawSimilarList.length;
-    const siblingCategoryProducts = await prisma.product.findMany({
-      where: {
-        id: { notIn: Array.from(foundProductIds) },
-        isActive: true,
-        OR: [
-          { categoryId: parentId },
-          { category: { parentId: parentId } },
-        ],
-      },
-      take: remainingCount,
-      orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
-      select: similarSelect,
-    });
+    const siblingCategoryProducts = await timeOperation(
+      "db_similar_parent_cat",
+      () =>
+        prisma.product.findMany({
+          where: {
+            id: { notIn: Array.from(foundProductIds) },
+            isActive: true,
+            OR: [
+              { categoryId: parentId },
+              { category: { parentId: parentId } },
+            ],
+          },
+          take: remainingCount,
+          orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
+          select: similarSelect,
+        }),
+      "Query Similar Products (Parent/Sibling Category)"
+    );
 
     for (const p of siblingCategoryProducts) {
       if (!foundProductIds.has(p.id)) {
@@ -777,65 +815,70 @@ export async function getSimilarProducts(
   }
 
   // Map each raw product to CatalogueProductItem format
-  return rawSimilarList.map((p) => {
-    const mrp = Number(p.mrp);
-    const sellingPrice = p.sellingPrice != null ? Number(p.sellingPrice) : null;
-    const qty = p.inventory?.quantity ?? 0;
-    const threshold = p.inventory?.lowStockThreshold ?? 5;
-    const stockStatus = calculateStockStatus(qty, threshold);
-    const primaryImage =
-      p.images.find((img: any) => img.isPrimary) ||
-      (p.images.length > 0 ? p.images[0] : null);
+  return await timeOperation(
+    "format_similar_products",
+    () =>
+      rawSimilarList.map((p) => {
+        const mrp = Number(p.mrp);
+        const sellingPrice = p.sellingPrice != null ? Number(p.sellingPrice) : null;
+        const qty = p.inventory?.quantity ?? 0;
+        const threshold = p.inventory?.lowStockThreshold ?? 5;
+        const stockStatus = calculateStockStatus(qty, threshold);
+        const primaryImage =
+          p.images.find((img: any) => img.isPrimary) ||
+          (p.images.length > 0 ? p.images[0] : null);
 
-    return {
-      id: p.id,
-      name: p.name,
-      slug: p.slug,
-      sku: p.sku,
-      modelNumber: p.modelNumber,
-      description: p.description,
-      brandId: p.brandId,
-      categoryId: p.categoryId,
-      mrp,
-      sellingPrice,
-      discountPercent: calculateDiscountPercent(mrp, sellingPrice),
-      privatePriceCode: p.privatePriceCode,
-      warranty: p.warranty,
-      isFeatured: p.isFeatured,
-      isActive: p.isActive,
-      createdAt: p.createdAt,
-      updatedAt: p.updatedAt,
-      brand: p.brand,
-      category: p.category,
-      inventory: {
-        quantity: qty,
-        lowStockThreshold: threshold,
-        stockStatus,
-      },
-      primaryImage,
-      images: p.images.map((img: any) => ({
-        id: img.id,
-        productId: img.productId,
-        url: img.url,
-        publicId: img.publicId,
-        altText: img.altText,
-        sortOrder: img.sortOrder,
-        isPrimary: img.isPrimary,
-        createdAt: img.createdAt,
-        updatedAt: img.updatedAt,
-      })),
-      videos: [],
-      attributeValues: p.attributeValues.map((av: any) => ({
-        id: av.id,
-        attributeId: av.attributeId,
-        attributeSlug: av.attribute.slug,
-        attributeName: av.attribute.name,
-        attributeType: av.attribute.type,
-        unit: av.attribute.unit,
-        value: av.value,
-        numericValue: av.numericValue,
-        booleanValue: av.booleanValue,
-      })),
-    };
-  });
+        return {
+          id: p.id,
+          name: p.name,
+          slug: p.slug,
+          sku: p.sku,
+          modelNumber: p.modelNumber,
+          description: p.description,
+          brandId: p.brandId,
+          categoryId: p.categoryId,
+          mrp,
+          sellingPrice,
+          discountPercent: calculateDiscountPercent(mrp, sellingPrice),
+          privatePriceCode: p.privatePriceCode,
+          warranty: p.warranty,
+          isFeatured: p.isFeatured,
+          isActive: p.isActive,
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
+          brand: p.brand,
+          category: p.category,
+          inventory: {
+            quantity: qty,
+            lowStockThreshold: threshold,
+            stockStatus,
+          },
+          primaryImage,
+          images: p.images.map((img: any) => ({
+            id: img.id,
+            productId: img.productId,
+            url: img.url,
+            publicId: img.publicId,
+            altText: img.altText,
+            sortOrder: img.sortOrder,
+            isPrimary: img.isPrimary,
+            createdAt: img.createdAt,
+            updatedAt: img.updatedAt,
+          })),
+          videos: [],
+          attributeValues: p.attributeValues.map((av: any) => ({
+            id: av.id,
+            attributeId: av.attributeId,
+            attributeSlug: av.attribute.slug,
+            attributeName: av.attribute.name,
+            attributeType: av.attribute.type,
+            unit: av.attribute.unit,
+            value: av.value,
+            numericValue: av.numericValue,
+            booleanValue: av.booleanValue,
+          })),
+        };
+      }),
+    "Format Similar Product Cards (In-Memory)"
+  );
 }
