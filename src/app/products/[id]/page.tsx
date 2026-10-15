@@ -33,6 +33,7 @@ import { ShowroomHeader } from "@/components/showroom/ShowroomHeader";
 import { ProductCard } from "@/components/showroom/ProductCard";
 import { PresentationModeModal } from "@/components/showroom/PresentationModeModal";
 import { MarkAsSoldModal } from "@/components/showroom/MarkAsSoldModal";
+import { ProductOverview } from "@/components/showroom/ProductOverview";
 import { getOptimizedImageUrl, IMAGE_PROFILES } from "@/lib/cloudinary-url";
 import type { CatalogueProductItem } from "@/types";
 
@@ -482,16 +483,9 @@ export default function ProductDetailPage({
                 </div>
               </div>
 
-              {/* Description */}
+              {/* Product Overview / Specification Tables */}
               {product.description && (
-                <div className="space-y-1.5">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Product Overview
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line">
-                    {product.description}
-                  </p>
-                </div>
+                <ProductOverview description={product.description} />
               )}
             </div>
 
