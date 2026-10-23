@@ -458,6 +458,8 @@ export interface CatalogueProductItem {
     value: string;
     numericValue: number | null;
     booleanValue: boolean | null;
+    isRequired?: boolean;
+    sortOrder?: number;
   }[];
   similarProducts?: CatalogueProductItem[];
 }

@@ -295,7 +295,6 @@ const productCardSelect = {
     },
   },
   attributeValues: {
-    take: 4,
     select: {
       id: true,
       attributeId: true,
@@ -309,6 +308,8 @@ const productCardSelect = {
           slug: true,
           type: true,
           unit: true,
+          isRequired: true,
+          sortOrder: true,
         },
       },
     },
@@ -846,17 +847,21 @@ export async function getCatalogueProducts(
           primaryImage,
           images: formattedImages,
           videos: [], // videos are not needed on product list cards
-          attributeValues: p.attributeValues.map((av) => ({
-            id: av.id,
-            attributeId: av.attributeId,
-            attributeSlug: av.attribute.slug,
-            attributeName: av.attribute.name,
-            attributeType: av.attribute.type,
-            unit: av.attribute.unit,
-            value: av.value,
-            numericValue: av.numericValue,
-            booleanValue: av.booleanValue,
-          })),
+          attributeValues: [...p.attributeValues]
+            .sort((a, b) => (a.attribute?.sortOrder ?? 0) - (b.attribute?.sortOrder ?? 0))
+            .map((av) => ({
+              id: av.id,
+              attributeId: av.attributeId,
+              attributeSlug: av.attribute.slug,
+              attributeName: av.attribute.name,
+              attributeType: av.attribute.type,
+              unit: av.attribute.unit,
+              value: av.value,
+              numericValue: av.numericValue,
+              booleanValue: av.booleanValue,
+              isRequired: av.attribute?.isRequired ?? false,
+              sortOrder: av.attribute?.sortOrder ?? 0,
+            })),
         };
       }),
     "Format Product Cards (In-Memory)"
@@ -927,6 +932,8 @@ export async function getCatalogueProductDetail(
                   slug: true,
                   type: true,
                   unit: true,
+                  isRequired: true,
+                  sortOrder: true,
                 },
               },
             },
@@ -1075,17 +1082,21 @@ export async function getCatalogueProductDetail(
     primaryImage,
     images: formattedImages,
     videos: formattedVideos,
-    attributeValues: product.attributeValues.map((av) => ({
-      id: av.id,
-      attributeId: av.attributeId,
-      attributeSlug: av.attribute.slug,
-      attributeName: av.attribute.name,
-      attributeType: av.attribute.type,
-      unit: av.attribute.unit,
-      value: av.value,
-      numericValue: av.numericValue,
-      booleanValue: av.booleanValue,
-    })),
+    attributeValues: [...product.attributeValues]
+      .sort((a, b) => (a.attribute?.sortOrder ?? 0) - (b.attribute?.sortOrder ?? 0))
+      .map((av) => ({
+        id: av.id,
+        attributeId: av.attributeId,
+        attributeSlug: av.attribute.slug,
+        attributeName: av.attribute.name,
+        attributeType: av.attribute.type,
+        unit: av.attribute.unit,
+        value: av.value,
+        numericValue: av.numericValue,
+        booleanValue: av.booleanValue,
+        isRequired: av.attribute?.isRequired ?? false,
+        sortOrder: av.attribute?.sortOrder ?? 0,
+      })),
     similarProducts,
   };
 }
@@ -1179,7 +1190,6 @@ export async function getSimilarProducts(
       },
     },
     attributeValues: {
-      take: 4,
       select: {
         id: true,
         attributeId: true,
@@ -1187,7 +1197,15 @@ export async function getSimilarProducts(
         numericValue: true,
         booleanValue: true,
         attribute: {
-          select: { id: true, name: true, slug: true, type: true, unit: true },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            type: true,
+            unit: true,
+            isRequired: true,
+            sortOrder: true,
+          },
         },
       },
     },
@@ -1312,17 +1330,21 @@ export async function getSimilarProducts(
             updatedAt: img.updatedAt,
           })),
           videos: [],
-          attributeValues: p.attributeValues.map((av: any) => ({
-            id: av.id,
-            attributeId: av.attributeId,
-            attributeSlug: av.attribute.slug,
-            attributeName: av.attribute.name,
-            attributeType: av.attribute.type,
-            unit: av.attribute.unit,
-            value: av.value,
-            numericValue: av.numericValue,
-            booleanValue: av.booleanValue,
-          })),
+          attributeValues: [...p.attributeValues]
+            .sort((a, b) => (a.attribute?.sortOrder ?? 0) - (b.attribute?.sortOrder ?? 0))
+            .map((av: any) => ({
+              id: av.id,
+              attributeId: av.attributeId,
+              attributeSlug: av.attribute.slug,
+              attributeName: av.attribute.name,
+              attributeType: av.attribute.type,
+              unit: av.attribute.unit,
+              value: av.value,
+              numericValue: av.numericValue,
+              booleanValue: av.booleanValue,
+              isRequired: av.attribute?.isRequired ?? false,
+              sortOrder: av.attribute?.sortOrder ?? 0,
+            })),
         };
       }),
     "Format Similar Product Cards (In-Memory)"
