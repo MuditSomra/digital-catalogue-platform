@@ -61,3 +61,24 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.5);
 }
+
+/* PWA Mobile App Support & Safe Area Insets */
+@supports (padding-top: env(safe-area-inset-top)) {
+  html {
+    height: 100%;
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* In standalone app mode, ensure sticky top headers comfortably clear the device notch/status bar */
+  @media all and (display-mode: standalone) {
+    header.sticky.top-0 {
+      padding-top: env(safe-area-inset-top, 0px);
+      height: calc(4rem + env(safe-area-inset-top, 0px));
+    }
+  }
+}
+

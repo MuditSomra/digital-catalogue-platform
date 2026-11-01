@@ -14,6 +14,7 @@ import {
   Lock,
 } from "lucide-react";
 import { PinModal } from "@/components/ui/PinModal";
+import { InstallPwaButton } from "@/components/pwa/InstallPwaButton";
 
 interface ShowroomHeaderProps {
   comparedCount?: number;
@@ -131,6 +132,9 @@ export function ShowroomHeader({
                 </span>
               </Link>
             )}
+
+            {/* PWA Install Button (renders only when browser provides install opportunity) */}
+            <InstallPwaButton />
 
             {/* Mode Switch: PIN Protected Dashboard Switch */}
             <button

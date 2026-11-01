@@ -8,9 +8,10 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public files (.svg, .png, .jpg, .webp, .ico, etc.)
+     * - sw.js (service worker)
+     * - public files (.svg, .png, .jpg, .webp, .ico, .json, .webmanifest)
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|json|webmanifest)$).*)",
   ],
 };
 
@@ -20,6 +21,9 @@ const PUBLIC_EXACT_PATHS = new Set([
   "/api/auth/logout",
   "/api/auth/session",
   "/api/health",
+  "/manifest.webmanifest",
+  "/manifest.json",
+  "/sw.js",
 ]);
 
 export function middleware(request: NextRequest) {

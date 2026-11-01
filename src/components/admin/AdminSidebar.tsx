@@ -17,6 +17,7 @@ import {
   Building2,
   Lock,
 } from "lucide-react";
+import { InstallPwaButton } from "@/components/pwa/InstallPwaButton";
 
 interface AdminSidebarProps {
   isOpen: boolean;
@@ -215,6 +216,11 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
               </Link>
             );
           })}
+        </div>
+
+        {/* PWA Install Button (renders only when browser provides install opportunity) */}
+        <div className="px-3">
+          <InstallPwaButton variant="sidebar" />
         </div>
 
         {/* Showroom Mode Switcher */}
