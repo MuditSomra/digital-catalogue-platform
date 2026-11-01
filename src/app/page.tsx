@@ -21,6 +21,7 @@ import { ShowroomHeader } from "@/components/showroom/ShowroomHeader";
 import { ProductCard } from "@/components/showroom/ProductCard";
 import { DynamicFilterSidebar } from "@/components/showroom/DynamicFilterSidebar";
 import { MobileTwoPanelFilterModal } from "@/components/showroom/MobileTwoPanelFilterModal";
+import { MobileCategoryScrollFilter } from "@/components/showroom/MobileCategoryScrollFilter";
 import { ComparisonFloatingBar } from "@/components/showroom/ComparisonFloatingBar";
 import type {
   CatalogueProductItem,
@@ -52,6 +53,7 @@ function CustomerCatalogueContent() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState(searchParams.get("category") || "");
+  const [hasUserClearedCategory, setHasUserClearedCategory] = useState(false);
   const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
 
   const initialHasPriceCode = Boolean(searchParams.get("minPriceCode") || searchParams.get("maxPriceCode"));
@@ -118,7 +120,17 @@ function CustomerCatalogueContent() {
         ]);
         if (catsRes.ok) {
           const catsJson = await catsRes.json();
-          setCategories(catsJson.data || []);
+          const loadedCategories: CategoryTreeNode[] = catsJson.data || [];
+          setCategories(loadedCategories);
+
+          // If no category was explicitly in searchParams, automatically select the first available main category
+          const initialCategoryParam = searchParams.get("category");
+          if (!initialCategoryParam && !selectedCategoryId && !hasUserClearedCategory && loadedCategories.length > 0) {
+            const firstMain = loadedCategories.find((c) => !c.parentId && c.isActive !== false) || loadedCategories[0];
+            if (firstMain) {
+              setSelectedCategoryId(firstMain.id);
+            }
+          }
         }
         if (brandsRes.ok) {
           const brandsJson = await brandsRes.json();
@@ -129,7 +141,7 @@ function CustomerCatalogueContent() {
       }
     }
     loadAuxData();
-  }, []);
+  }, [searchParams, selectedCategoryId, hasUserClearedCategory]);
 
   // 3. Fetch Catalogue Products whenever debounced search or filters change
   const fetchProducts = useCallback(async () => {
@@ -350,6 +362,7 @@ function CustomerCatalogueContent() {
   // Handle Category Change (resets dynamic attribute filters)
   const handleCategoryChange = (catId: string) => {
     setSelectedCategoryId(catId);
+    setHasUserClearedCategory(!catId);
     setAttributeFilters([]);
     setCurrentPage(1);
   };
@@ -403,6 +416,7 @@ function CustomerCatalogueContent() {
     attributeFilters: AttributeFilterParam[];
   }) => {
     setSelectedCategoryId(newFilters.categoryId);
+    setHasUserClearedCategory(!newFilters.categoryId);
     setSelectedBrandIds(newFilters.brandIds);
     setInStockOnly(newFilters.inStockOnly);
     setMinSellingPrice(newFilters.minSellingPrice);
@@ -417,6 +431,7 @@ function CustomerCatalogueContent() {
   const handleClearAll = () => {
     setSearch("");
     setSelectedCategoryId("");
+    setHasUserClearedCategory(true);
     setSelectedBrandIds([]);
     setMinSellingPrice(undefined);
     setMaxSellingPrice(undefined);
@@ -470,10 +485,65 @@ function CustomerCatalogueContent() {
           </div>
         </div>
 
-        {/* Top Control Bar: Total Count, Sorting & Mobile Filter Toggle */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs">
+        {/* Mobile Dynamic 2-Row Scrollable Category Filter & Compact Count/Sorting Row */}
+        <div className="md:hidden space-y-3">
+          <MobileCategoryScrollFilter
+            categories={categories}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategory={handleCategoryChange}
+            onOpenAllFilters={() => setMobileFilterOpen(true)}
+            hasActiveFilters={
+              Boolean(selectedBrandIds.length > 0 ||
+              minSellingPrice !== undefined ||
+              maxSellingPrice !== undefined ||
+              minPriceCode !== undefined ||
+              maxPriceCode !== undefined ||
+              !inStockOnly ||
+              attributeFilters.length > 0)
+            }
+          />
+
+          {/* Mobile Product Count & Sorting Row */}
+          <div className="flex items-center justify-between gap-2 px-1">
+            <span className="text-xs font-medium text-slate-600">
+              {loading ? (
+                "Loading products..."
+              ) : pagination ? (
+                <>
+                  Showing <strong className="font-semibold text-slate-900">{products.length}</strong> of{" "}
+                  <strong className="font-semibold text-slate-900">{pagination.totalCount}</strong> products
+                </>
+              ) : (
+                `Showing ${products.length} products`
+              )}
+            </span>
+
+            {/* Mobile Compact Sort Dropdown */}
+            <div className="relative shrink-0">
+              <select
+                value={sortBy}
+                onChange={(e) => {
+                  setSortBy(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="pl-2.5 pr-7 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition cursor-pointer appearance-none shadow-2xs"
+              >
+                <option value="featured">Featured First</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+                <option value="name_asc">Name: A to Z</option>
+                <option value="name_desc">Name: Z to A</option>
+                <option value="newest">Newest Arrivals</option>
+              </select>
+              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+        </div>
+
+        {/* Top Control Bar: Total Count, Sorting & Mobile Filter Toggle (Tablet & Desktop) */}
+        <div className="hidden md:flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs">
           <div className="flex items-center gap-2">
-            {/* Mobile Filter Drawer Button */}
+            {/* Tablet Filter Drawer Button */}
             <button
               type="button"
               onClick={() => setMobileFilterOpen(true)}
