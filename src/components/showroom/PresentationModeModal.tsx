@@ -8,6 +8,8 @@ import {
   Maximize2,
   Minimize2,
   Package,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { getOptimizedImageUrl, IMAGE_PROFILES } from "@/lib/cloudinary-url";
 import type { CatalogueProductItem } from "@/types";
@@ -17,6 +19,7 @@ interface PresentationModeModalProps {
   onClose: () => void;
   product: CatalogueProductItem;
   allProducts?: CatalogueProductItem[];
+  defaultTheme?: "light" | "dark";
 }
 
 type MediaItem =
@@ -39,9 +42,11 @@ export function PresentationModeModal({
   isOpen,
   onClose,
   product,
+  defaultTheme = "light",
 }: PresentationModeModalProps) {
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isDarkTheme, setIsDarkTheme] = useState(defaultTheme === "dark");
   const touchStartXRef = useRef<number | null>(null);
 
   // Build sequential media list (images first, followed by videos)
@@ -78,12 +83,13 @@ export function PresentationModeModal({
     });
   }
 
-  // Reset media index when product or open state changes
+  // Reset media index and theme when product or open state changes
   useEffect(() => {
     if (isOpen) {
       setCurrentMediaIndex(0);
+      setIsDarkTheme(defaultTheme === "dark");
     }
-  }, [isOpen, product.id]);
+  }, [isOpen, product.id, defaultTheme]);
 
   // Request browser fullscreen on open
   useEffect(() => {
@@ -176,44 +182,90 @@ export function PresentationModeModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black text-white flex flex-col justify-between select-none animate-in fade-in duration-150"
+      className={`fixed inset-0 z-50 flex flex-col justify-between select-none animate-in fade-in duration-150 transition-colors ${
+        isDarkTheme ? "bg-black text-white" : "bg-white text-slate-900"
+      }`}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Minimal Top Floating Navigation Bar */}
-      <header className="absolute top-0 left-0 right-0 z-20 px-4 sm:px-6 py-4 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent">
+      {/* Top Floating Navigation Bar */}
+      <header
+        className={`absolute top-0 left-0 right-0 z-20 px-4 sm:px-6 py-4 flex items-center justify-between transition-colors ${
+          isDarkTheme
+            ? "bg-gradient-to-b from-black/85 via-black/40 to-transparent"
+            : "bg-gradient-to-b from-white/95 via-white/60 to-transparent"
+        }`}
+      >
         <div className="flex items-center gap-3">
-          <div className="max-w-[240px] sm:max-w-md truncate">
-            <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wider block">
+          <div className="max-w-[190px] xs:max-w-[260px] sm:max-w-md truncate">
+            <span
+              className={`text-[11px] font-bold uppercase tracking-wider block ${
+                isDarkTheme ? "text-blue-400" : "text-blue-600"
+              }`}
+            >
               {product.brand.name}
             </span>
-            <span className="text-sm sm:text-base font-semibold text-white/95 truncate block">
+            <span
+              className={`text-sm sm:text-base font-semibold truncate block ${
+                isDarkTheme ? "text-white/95" : "text-slate-900"
+              }`}
+            >
               {product.name}
             </span>
           </div>
         </div>
 
-        {/* Counter, Fullscreen & Immediate Exit */}
-        <div className="flex items-center gap-3">
+        {/* Counter, Theme Toggle, Fullscreen & Immediate Exit */}
+        <div className="flex items-center gap-2 sm:gap-3">
           {totalItems > 0 && (
-            <div className="px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-xs font-mono font-medium text-white/90 border border-white/15">
+            <div
+              className={`px-2.5 sm:px-3 py-1 rounded-full text-xs font-mono font-medium border backdrop-blur-md transition-colors ${
+                isDarkTheme
+                  ? "bg-white/10 text-white/90 border-white/15"
+                  : "bg-slate-100/90 text-slate-700 border-slate-200/90 shadow-2xs"
+              }`}
+            >
               {currentMediaIndex + 1} / {totalItems}
             </div>
           )}
 
+          {/* Theme Toggle (White / Dark Background) */}
+          <button
+            type="button"
+            onClick={() => setIsDarkTheme(!isDarkTheme)}
+            className={`p-2 rounded-full backdrop-blur-md transition cursor-pointer border ${
+              isDarkTheme
+                ? "bg-white/10 hover:bg-white/20 text-white/80 hover:text-white border-white/15"
+                : "bg-slate-100/90 hover:bg-slate-200/90 text-slate-700 hover:text-slate-900 border-slate-200/90 shadow-2xs"
+            }`}
+            title={isDarkTheme ? "Switch to White Background" : "Switch to Dark Background"}
+          >
+            {isDarkTheme ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+
+          {/* Fullscreen Toggle */}
           <button
             type="button"
             onClick={toggleBrowserFullscreen}
-            className="p-2 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md text-white/80 hover:text-white transition hidden sm:flex items-center justify-center"
+            className={`p-2 rounded-full backdrop-blur-md transition hidden sm:flex items-center justify-center cursor-pointer border ${
+              isDarkTheme
+                ? "bg-white/10 hover:bg-white/20 text-white/80 hover:text-white border-white/15"
+                : "bg-slate-100/90 hover:bg-slate-200/90 text-slate-700 hover:text-slate-900 border-slate-200/90 shadow-2xs"
+            }`}
             title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
 
+          {/* Exit Presentation */}
           <button
             type="button"
             onClick={handleExit}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-md text-xs font-semibold transition border border-white/20 shadow-md cursor-pointer"
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold backdrop-blur-md transition shadow-md cursor-pointer border ${
+              isDarkTheme
+                ? "bg-white/20 hover:bg-white/30 text-white border-white/20"
+                : "bg-slate-900 hover:bg-slate-800 text-white border-slate-900"
+            }`}
             title="Exit Presentation"
           >
             <X className="w-4 h-4" />
@@ -225,7 +277,7 @@ export function PresentationModeModal({
       {/* Main Center Full-Screen Media Display */}
       <main className="relative flex-1 w-full h-full flex items-center justify-center p-4 sm:p-8 overflow-hidden">
         {totalItems === 0 ? (
-          <div className="text-center text-slate-500 space-y-2">
+          <div className={`text-center space-y-2 ${isDarkTheme ? "text-slate-500" : "text-slate-400"}`}>
             <Package className="w-16 h-16 mx-auto stroke-[1.2]" />
             <p className="text-sm font-medium">No media available for this product</p>
           </div>
@@ -235,7 +287,9 @@ export function PresentationModeModal({
               key={currentMedia.id}
               src={getOptimizedImageUrl(currentMedia.url, IMAGE_PROFILES.presentation)}
               alt={currentMedia.altText || product.name}
-              className="max-h-[88vh] max-w-[94vw] object-contain drop-shadow-2xl transition-all duration-200"
+              className={`max-h-[88vh] max-w-[94vw] object-contain transition-all duration-200 ${
+                isDarkTheme ? "drop-shadow-2xl" : "drop-shadow-md sm:drop-shadow-xl"
+              }`}
             />
           </div>
         ) : (
@@ -247,7 +301,9 @@ export function PresentationModeModal({
                 title={currentMedia.title || "Product Video Demo"}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
-                className="w-full h-full min-h-[320px] sm:min-h-[480px] max-h-[80vh] rounded-2xl border border-white/10 shadow-2xl"
+                className={`w-full h-full min-h-[320px] sm:min-h-[480px] max-h-[80vh] rounded-2xl shadow-2xl border ${
+                  isDarkTheme ? "border-white/10" : "border-slate-200 bg-black"
+                }`}
               />
             ) : (
               <video
@@ -269,7 +325,11 @@ export function PresentationModeModal({
               e.stopPropagation();
               handlePrev();
             }}
-            className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-20 p-3 sm:p-4 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white backdrop-blur-md transition border border-white/10 shadow-lg group cursor-pointer"
+            className={`absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-20 p-3 sm:p-4 rounded-full backdrop-blur-md transition shadow-lg group cursor-pointer border ${
+              isDarkTheme
+                ? "bg-black/50 hover:bg-black/80 text-white/80 hover:text-white border-white/10"
+                : "bg-white/90 hover:bg-white text-slate-700 hover:text-slate-950 border-slate-200/90 hover:shadow-xl active:scale-95"
+            }`}
             title="Previous (Left Arrow)"
           >
             <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8 group-hover:-translate-x-0.5 transition-transform" />
@@ -284,7 +344,11 @@ export function PresentationModeModal({
               e.stopPropagation();
               handleNext();
             }}
-            className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-20 p-3 sm:p-4 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white backdrop-blur-md transition border border-white/10 shadow-lg group cursor-pointer"
+            className={`absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-20 p-3 sm:p-4 rounded-full backdrop-blur-md transition shadow-lg group cursor-pointer border ${
+              isDarkTheme
+                ? "bg-black/50 hover:bg-black/80 text-white/80 hover:text-white border-white/10"
+                : "bg-white/90 hover:bg-white text-slate-700 hover:text-slate-950 border-slate-200/90 hover:shadow-xl active:scale-95"
+            }`}
             title="Next (Right Arrow)"
           >
             <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8 group-hover:translate-x-0.5 transition-transform" />
@@ -292,9 +356,15 @@ export function PresentationModeModal({
         )}
       </main>
 
-      {/* Minimal Bottom Thumbnail Indicators */}
+      {/* Bottom Thumbnail / Indicator Dots */}
       {hasMultiple && (
-        <footer className="absolute bottom-0 left-0 right-0 z-20 py-4 px-6 flex items-center justify-center gap-2 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+        <footer
+          className={`absolute bottom-0 left-0 right-0 z-20 py-4 px-6 flex items-center justify-center gap-2 transition-colors ${
+            isDarkTheme
+              ? "bg-gradient-to-t from-black/85 via-black/40 to-transparent"
+              : "bg-gradient-to-t from-white/95 via-white/60 to-transparent"
+          }`}
+        >
           <div className="flex items-center gap-1.5 max-w-full overflow-x-auto py-1 px-2">
             {mediaItems.map((item, idx) => (
               <button
@@ -303,8 +373,12 @@ export function PresentationModeModal({
                 onClick={() => setCurrentMediaIndex(idx)}
                 className={`h-2 rounded-full transition-all cursor-pointer ${
                   idx === currentMediaIndex
-                    ? "w-8 bg-blue-500"
-                    : "w-2 bg-white/30 hover:bg-white/60"
+                    ? isDarkTheme
+                      ? "w-8 bg-blue-500"
+                      : "w-8 bg-blue-600"
+                    : isDarkTheme
+                    ? "w-2 bg-white/30 hover:bg-white/60"
+                    : "w-2 bg-slate-300 hover:bg-slate-400"
                 }`}
                 title={`Go to item ${idx + 1}`}
               />
