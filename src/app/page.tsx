@@ -20,6 +20,7 @@ import {
 import { ShowroomHeader } from "@/components/showroom/ShowroomHeader";
 import { ProductCard } from "@/components/showroom/ProductCard";
 import { DynamicFilterSidebar } from "@/components/showroom/DynamicFilterSidebar";
+import { MobileTwoPanelFilterModal } from "@/components/showroom/MobileTwoPanelFilterModal";
 import { ComparisonFloatingBar } from "@/components/showroom/ComparisonFloatingBar";
 import type {
   CatalogueProductItem,
@@ -390,6 +391,28 @@ function CustomerCatalogueContent() {
     setCurrentPage(1);
   };
 
+  // Handle Atomic Mobile Filters Application
+  const handleApplyMobileFilters = (newFilters: {
+    categoryId: string;
+    brandIds: string[];
+    inStockOnly: boolean;
+    minSellingPrice?: number;
+    maxSellingPrice?: number;
+    minPriceCode?: number;
+    maxPriceCode?: number;
+    attributeFilters: AttributeFilterParam[];
+  }) => {
+    setSelectedCategoryId(newFilters.categoryId);
+    setSelectedBrandIds(newFilters.brandIds);
+    setInStockOnly(newFilters.inStockOnly);
+    setMinSellingPrice(newFilters.minSellingPrice);
+    setMaxSellingPrice(newFilters.maxSellingPrice);
+    setMinPriceCode(newFilters.minPriceCode);
+    setMaxPriceCode(newFilters.maxPriceCode);
+    setAttributeFilters(newFilters.attributeFilters);
+    setCurrentPage(1);
+  };
+
   // Handle Clear All
   const handleClearAll = () => {
     setSearch("");
@@ -622,42 +645,28 @@ function CustomerCatalogueContent() {
         </div>
       </main>
 
-      {/* Mobile Filter Drawer Overlay */}
+      {/* Mobile Filter: Amazon-Inspired Two-Panel Modal */}
       {mobileFilterOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden flex">
-          <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs"
-            onClick={() => setMobileFilterOpen(false)}
-          />
-          <div className="relative ml-auto w-full max-w-xs bg-white h-full overflow-y-auto p-4 z-10 animate-in slide-in-from-right duration-200 shadow-2xl">
-            <DynamicFilterSidebar
-              categories={categories}
-              brands={brands}
-              availableFilters={availableFilters}
-              sellingPriceRange={sellingPriceBounds}
-              priceCodeRange={priceCodeBounds}
-              selectedCategoryId={selectedCategoryId}
-              selectedBrandIds={selectedBrandIds}
-              minSellingPrice={minSellingPrice}
-              maxSellingPrice={maxSellingPrice}
-              minPriceCode={minPriceCode}
-              maxPriceCode={maxPriceCode}
-              inStockOnly={inStockOnly}
-              attributeFilters={attributeFilters}
-              onCategoryChange={handleCategoryChange}
-              onBrandToggle={handleBrandToggle}
-              onSellingPriceChange={handleSellingPriceChange}
-              onPriceCodeChange={handlePriceCodeChange}
-              onInStockToggle={(val) => {
-                setInStockOnly(val);
-                setCurrentPage(1);
-              }}
-              onAttributeFilterChange={handleAttributeFilterChange}
-              onClearAll={handleClearAll}
-              onCloseMobile={() => setMobileFilterOpen(false)}
-            />
-          </div>
-        </div>
+        <MobileTwoPanelFilterModal
+          isOpen={mobileFilterOpen}
+          onClose={() => setMobileFilterOpen(false)}
+          categories={categories}
+          brands={brands}
+          availableFilters={availableFilters}
+          sellingPriceBounds={sellingPriceBounds}
+          priceCodeBounds={priceCodeBounds}
+          appliedCategoryId={selectedCategoryId}
+          appliedBrandIds={selectedBrandIds}
+          appliedInStockOnly={inStockOnly}
+          appliedMinSellingPrice={minSellingPrice}
+          appliedMaxSellingPrice={maxSellingPrice}
+          appliedMinPriceCode={minPriceCode}
+          appliedMaxPriceCode={maxPriceCode}
+          appliedAttributeFilters={attributeFilters}
+          catalogSearch={debouncedSearch}
+          initialProductCount={pagination?.totalCount ?? products.length}
+          onApplyFilters={handleApplyMobileFilters}
+        />
       )}
 
       {/* Floating Comparison Bar */}
