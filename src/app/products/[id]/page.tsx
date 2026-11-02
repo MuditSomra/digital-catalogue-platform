@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, use, useRef } from "react";
+import React, { useState, useEffect, useCallback, use, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -28,14 +28,20 @@ import {
   FileText,
   Info,
   Images,
+  Tv,
+  MoreVertical,
+  PackagePlus,
+  CheckSquare,
 } from "lucide-react";
 import { ShowroomHeader } from "@/components/showroom/ShowroomHeader";
 import { ProductCard } from "@/components/showroom/ProductCard";
 import { PresentationModeModal } from "@/components/showroom/PresentationModeModal";
 import { MarkAsSoldModal } from "@/components/showroom/MarkAsSoldModal";
 import { ProductOverview } from "@/components/showroom/ProductOverview";
+import { PinModal } from "@/components/ui/PinModal";
+import { StockOperationModal } from "@/components/admin/inventory/StockOperationModal";
 import { getOptimizedImageUrl, IMAGE_PROFILES } from "@/lib/cloudinary-url";
-import type { CatalogueProductItem } from "@/types";
+import { InventoryMovementType, type CatalogueProductItem } from "@/types";
 
 export default function ProductDetailPage({
   params,
@@ -65,34 +71,64 @@ export default function ProductDetailPage({
     gallery: false,
   });
 
-  // Modals
+  // Navigation, Menu & Action Modals State
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
   const [isMarkSoldOpen, setIsMarkSoldOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAddInventoryPinOpen, setIsAddInventoryPinOpen] = useState(false);
+  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [showStickyBar, setShowStickyBar] = useState(false);
+
+  const staticActionsRef = useRef<HTMLDivElement>(null);
+  const overviewRef = useRef<HTMLDivElement>(null);
+
+  const loadProduct = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`/api/catalogue/products/${productId}`);
+      const json = await res.json();
+      if (json.success && json.data) {
+        setProduct(json.data);
+        setSelectedImageIndex(0);
+        setActiveMediaTab("image");
+      } else {
+        setError(json.error?.message || "Product not found.");
+      }
+    } catch {
+      setError("Failed to load product details.");
+    } finally {
+      setLoading(false);
+    }
+  }, [productId]);
 
   useEffect(() => {
-    async function loadProduct() {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await fetch(`/api/catalogue/products/${productId}`);
-        const json = await res.json();
-        if (json.success && json.data) {
-          setProduct(json.data);
-          setSelectedImageIndex(0);
-          setActiveMediaTab("image");
-        } else {
-          setError(json.error?.message || "Product not found.");
-        }
-      } catch {
-        setError("Failed to load product details.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
     loadProduct();
-  }, [productId]);
+  }, [loadProduct]);
+
+  // Scroll listener for sticky bottom action bar
+  useEffect(() => {
+    const handleScroll = () => {
+      if (staticActionsRef.current) {
+        const rect = staticActionsRef.current.getBoundingClientRect();
+        // Show sticky bar when original static buttons scroll past the top (under header)
+        setShowStickyBar(rect.bottom <= 65);
+      } else if (overviewRef.current) {
+        const rect = overviewRef.current.getBoundingClientRect();
+        setShowStickyBar(rect.top <= 120);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, []);
 
   const toggleSection = (sectionKey: string) => {
     setOpenSections((prev) => ({
@@ -204,56 +240,117 @@ export default function ProductDetailPage({
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       <ShowroomHeader />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Top Breadcrumbs & Actions Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <nav className="flex items-center flex-wrap gap-1.5 text-xs text-slate-500">
-            <Link href="/" className="hover:text-slate-900 font-medium transition">
-              Showroom
-            </Link>
-            {product.category.breadcrumbs?.map((bc) => (
-              <React.Fragment key={bc.id}>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
-                <Link
-                  href={`/?category=${bc.id}`}
-                  className="hover:text-slate-900 font-medium transition"
-                >
-                  {bc.name}
-                </Link>
-              </React.Fragment>
-            ))}
-          </nav>
-
-          {/* Quick Header Actions */}
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/compare?ids=${product.id}`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition shadow-2xs"
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-28 sm:pb-32 space-y-5">
+        {/* Product Details Navigation Row */}
+        <div className="flex items-center justify-between gap-3 bg-white px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl border border-slate-200 shadow-2xs">
+          {/* Left: Back Arrow + Title */}
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="p-1.5 sm:p-2 -ml-1 rounded-xl text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition shrink-0 cursor-pointer"
+              aria-label="Go back"
+              title="Back"
             >
-              <Scale className="w-3.5 h-3.5 text-blue-600" />
-              <span>Compare</span>
-            </Link>
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight truncate">
+                Product Details
+              </h1>
+              {product.category.breadcrumbs && product.category.breadcrumbs.length > 0 && (
+                <nav className="hidden sm:flex items-center gap-1 text-[11px] text-slate-400 truncate">
+                  <Link href="/" className="hover:text-slate-700 transition">
+                    Showroom
+                  </Link>
+                  {product.category.breadcrumbs.map((bc) => (
+                    <React.Fragment key={bc.id}>
+                      <ChevronRight className="w-3 h-3 text-slate-300 shrink-0" />
+                      <Link href={`/?category=${bc.id}`} className="hover:text-slate-700 transition">
+                        {bc.name}
+                      </Link>
+                    </React.Fragment>
+                  ))}
+                </nav>
+              )}
+            </div>
+          </div>
 
+          {/* Right: Present Button & Three-Dot Menu */}
+          <div className="flex items-center gap-2 shrink-0 relative">
+            {/* Present Button */}
             <button
               type="button"
               onClick={() => setIsPresentationOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition shadow-2xs cursor-pointer"
-              title="Enter distraction-free full-screen demonstration mode"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition shadow-2xs cursor-pointer"
+              title="Open Showroom Presentation"
             >
-              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-              <span>Showroom Presentation</span>
+              <Tv className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>Present</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setIsMarkSoldOpen(true)}
-              disabled={isOutOfStock}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white transition shadow-2xs cursor-pointer"
-              title="Record an in-person customer sale with PIN authorization"
-            >
-              <ShoppingBag className="w-3.5 h-3.5" />
-              <span>Mark as Sold</span>
-            </button>
+            {/* Three-Dot Menu Trigger */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsMenuOpen((prev) => !prev)}
+                className="p-2 rounded-xl text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition shadow-2xs cursor-pointer"
+                aria-label="More options"
+                title="More options"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+
+              {/* Three-Dot Menu Dropdown */}
+              {isMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                    {/* 1. Add Inventory */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        setIsAddInventoryPinOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition text-left cursor-pointer"
+                    >
+                      <PackagePlus className="w-4 h-4 text-slate-500 shrink-0" />
+                      <span>Add Inventory</span>
+                    </button>
+
+                    {/* 2. Compare */}
+                    <Link
+                      href={`/compare?ids=${product.id}`}
+                      onClick={() => setIsMenuOpen(false)}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition text-left cursor-pointer"
+                    >
+                      <Scale className="w-4 h-4 text-slate-500 shrink-0" />
+                      <span>Compare</span>
+                    </Link>
+
+                    <div className="my-1 border-t border-slate-100" />
+
+                    {/* 3. Mark as Sold */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        setIsMarkSoldOpen(true);
+                      }}
+                      disabled={isOutOfStock}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 transition text-left cursor-pointer"
+                    >
+                      <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Mark as Sold</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -357,8 +454,8 @@ export default function ProductDetailPage({
                       setActiveMediaTab("image");
                     }}
                     className={`w-16 h-16 sm:w-18 sm:h-18 aspect-square rounded-xl bg-slate-50 p-1.5 border shrink-0 transition overflow-hidden cursor-pointer ${activeMediaTab === "image" && selectedImageIndex === idx
-                        ? "border-blue-600 ring-2 ring-blue-100"
-                        : "border-slate-200 hover:border-slate-300 opacity-75 hover:opacity-100"
+                      ? "border-blue-600 ring-2 ring-blue-100"
+                      : "border-slate-200 hover:border-slate-300 opacity-75 hover:opacity-100"
                       }`}
                   >
                     <img
@@ -379,8 +476,8 @@ export default function ProductDetailPage({
                       setActiveMediaTab("video");
                     }}
                     className={`w-16 h-16 sm:w-18 sm:h-18 aspect-square rounded-xl bg-slate-900 p-1 border shrink-0 transition overflow-hidden relative flex items-center justify-center cursor-pointer ${activeMediaTab === "video" && selectedVideoIndex === idx
-                        ? "border-rose-600 ring-2 ring-rose-100"
-                        : "border-slate-700 opacity-75 hover:opacity-100"
+                      ? "border-rose-600 ring-2 ring-rose-100"
+                      : "border-slate-700 opacity-75 hover:opacity-100"
                       }`}
                   >
                     {vid.thumbnailUrl ? (
@@ -438,79 +535,110 @@ export default function ProductDetailPage({
                 </div>
               </div>
 
-              {/* Pricing Card */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
-                <div className="flex items-baseline gap-3">
-                  <span className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                    ₹{(product.sellingPrice ?? product.mrp).toLocaleString("en-IN")}
-                  </span>
-                  {product.sellingPrice && product.sellingPrice < product.mrp && (
-                    <span className="text-sm font-medium text-slate-400 line-through">
-                      MRP ₹{product.mrp.toLocaleString("en-IN")}
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-                  {product.discountPercent !== null && product.discountPercent > 0 && (
-                    <span className="inline-flex items-center min-h-[34px] sm:min-h-[36px] px-3 py-1 rounded-lg text-xs sm:text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-200/80 shadow-2xs shrink-0">
-                      {product.discountPercent}% OFF
-                    </span>
-                  )}
-
-                  {product.privatePriceCode && (
-                    <button
-                      type="button"
-                      onClick={handleCopyPriceCode}
-                      className="inline-flex items-center min-h-[34px] sm:min-h-[36px] px-3 py-1 rounded-lg bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition shadow-2xs cursor-pointer group gap-1.5 shrink-0"
-                      title="Click to copy price code"
-                    >
-                      <span className="text-xs sm:text-sm font-semibold text-slate-500">Code:</span>
-                      <span className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                        {product.privatePriceCode}
+              {/* Pricing & Price-Code Card (Balanced 2-Column Layout) */}
+              <div className="p-3.5 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/90 shadow-2xs">
+                <div className="grid grid-cols-2 divide-x divide-slate-200/90 items-stretch gap-3 sm:gap-4">
+                  {/* Left Column: Price Section */}
+                  <div className="pr-1 sm:pr-2 flex flex-col justify-between min-w-0">
+                    <div>
+                      <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                        Price
                       </span>
-                      {copiedCode ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 ml-0.5" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition shrink-0 ml-0.5" />
-                      )}
-                    </button>
-                  )}
+                      <div className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight leading-tight">
+                        ₹{(product.sellingPrice ?? product.mrp).toLocaleString("en-IN")}
+                      </div>
+                    </div>
 
-                  {product.warranty && (
-                    <span className="inline-flex items-center min-h-[34px] sm:min-h-[36px] px-3 py-1 rounded-lg bg-white text-slate-700 border border-slate-200 gap-1.5 shadow-2xs text-xs sm:text-sm font-medium">
-                      <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
-                      <span>{product.warranty}</span>
-                    </span>
-                  )}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-2">
+                      {product.sellingPrice && product.sellingPrice < product.mrp && (
+                        <span className="text-xs font-medium text-slate-400 line-through">
+                          MRP ₹{product.mrp.toLocaleString("en-IN")}
+                        </span>
+                      )}
+                      {product.discountPercent !== null && product.discountPercent > 0 && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200/80">
+                          {product.discountPercent}% OFF
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Code Section with Tap-to-Copy */}
+                  <div className="pl-3 sm:pl-4 flex flex-col justify-between min-w-0">
+                    <div>
+                      <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                        Code
+                      </span>
+                      {product.privatePriceCode ? (
+                        <button
+                          type="button"
+                          onClick={handleCopyPriceCode}
+                          className="w-full flex items-center justify-between gap-1.5 p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 active:bg-blue-50 transition shadow-2xs cursor-pointer group text-left min-h-[42px]"
+                          title="Tap to copy price code"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="font-mono text-xs sm:text-sm font-bold text-slate-900 tracking-wide truncate">
+                              {product.privatePriceCode}
+                            </div>
+                            <div className="text-[10px] text-slate-400 group-hover:text-blue-600 transition truncate">
+                              {copiedCode ? "Copied!" : "Tap to copy"}
+                            </div>
+                          </div>
+                          <div className="shrink-0 p-1 rounded-lg bg-slate-50 group-hover:bg-blue-100/60 transition">
+                            {copiedCode ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 transition" />
+                            )}
+                          </div>
+                        </button>
+                      ) : (
+                        <div className="text-xs text-slate-400 font-mono py-2">
+                          No code available
+                        </div>
+                      )}
+                    </div>
+
+                    {product.warranty && (
+                      <div className="pt-2 flex items-center gap-1.5 text-[11px] font-medium text-slate-600 truncate">
+                        <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span className="truncate">{product.warranty}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Product Overview / Specification Tables */}
-              {product.description && (
-                <ProductOverview description={product.description} />
-              )}
-            </div>
+              {/* Primary Action Buttons (Immediately below Price Card) */}
+              <div ref={staticActionsRef} className="flex items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsPresentationOpen(true)}
+                  className="flex-1 min-h-[46px] px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-blue-50 hover:bg-blue-100 active:bg-blue-200 text-blue-700 border border-blue-200/80 transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+                  title="Open Showroom Presentation"
+                >
+                  <Tv className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>Presentation</span>
+                </button>
 
-            {/* Quick Actions Footer */}
-            <div className="pt-4 border-t border-slate-100 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setIsPresentationOpen(true)}
-                className="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition shadow-xs flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                <span>Showroom Presentation</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsMarkSoldOpen(true)}
-                disabled={isOutOfStock}
-                className="py-2.5 px-4 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white transition shadow-xs flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <ShoppingBag className="w-3.5 h-3.5" />
-                <span>Mark as Sold</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setIsMarkSoldOpen(true)}
+                  disabled={isOutOfStock}
+                  className="flex-1 min-h-[46px] px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-40 text-white transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+                  title="Record an in-person customer sale with PIN authorization"
+                >
+                  <CheckSquare className="w-4 h-4 shrink-0 text-white" />
+                  <span>Mark as Sold</span>
+                </button>
+              </div>
+
+              {/* Product Overview Section */}
+              <div ref={overviewRef} id="product-overview-section" className="space-y-4 pt-2">
+                {product.description && (
+                  <ProductOverview description={product.description} />
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -759,6 +887,37 @@ export default function ProductDetailPage({
         )}
       </main>
 
+      {/* Scroll-Triggered Sticky Action Bar */}
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-lg px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-all duration-300 ease-in-out ${showStickyBar
+          ? "translate-y-0 opacity-100 pointer-events-auto"
+          : "translate-y-full opacity-0 pointer-events-none"
+          }`}
+      >
+        <div className="max-w-md mx-auto flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setIsPresentationOpen(true)}
+            className="flex-1 min-h-[46px] px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-blue-50 hover:bg-blue-100 active:bg-blue-200 text-blue-700 border border-blue-200/80 transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+            title="Open Showroom Presentation"
+          >
+            <Tv className="w-4 h-4 text-blue-600 shrink-0" />
+            <span>Presentation</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsMarkSoldOpen(true)}
+            disabled={isOutOfStock}
+            className="flex-1 min-h-[46px] px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-40 text-white transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+            title="Record an in-person customer sale with PIN authorization"
+          >
+            <CheckSquare className="w-4 h-4 shrink-0 text-white" />
+            <span>Mark as Sold</span>
+          </button>
+        </div>
+      </div>
+
       {/* Presentation Mode Modal */}
       <PresentationModeModal
         isOpen={isPresentationOpen}
@@ -772,6 +931,32 @@ export default function ProductDetailPage({
         onClose={() => setIsMarkSoldOpen(false)}
         product={product}
         onSuccess={handleStockUpdate}
+      />
+
+      {/* Owner PIN Verification for Add Inventory */}
+      <PinModal
+        isOpen={isAddInventoryPinOpen}
+        onClose={() => setIsAddInventoryPinOpen(false)}
+        onSuccess={() => {
+          setIsAddInventoryPinOpen(false);
+          setIsStockModalOpen(true);
+        }}
+        title="Add Inventory Authorization"
+        description="Enter owner PIN to access inventory management for this product."
+        action="add_inventory"
+      />
+
+      {/* Stock Operation Modal for Add Inventory */}
+      <StockOperationModal
+        isOpen={isStockModalOpen}
+        onClose={() => setIsStockModalOpen(false)}
+        product={product as any}
+        currentStock={product?.inventory.quantity ?? 0}
+        initialType={InventoryMovementType.PURCHASE}
+        onSuccess={() => {
+          setIsStockModalOpen(false);
+          loadProduct();
+        }}
       />
     </div>
   );

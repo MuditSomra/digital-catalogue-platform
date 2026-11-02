@@ -486,7 +486,7 @@ function CustomerCatalogueContent() {
         </div>
 
         {/* Mobile Dynamic 2-Row Scrollable Category Filter & Compact Count/Sorting Row */}
-        <div className="md:hidden space-y-3">
+        <div className="lg:hidden space-y-3">
           <MobileCategoryScrollFilter
             categories={categories}
             selectedCategoryId={selectedCategoryId}
@@ -494,12 +494,12 @@ function CustomerCatalogueContent() {
             onOpenAllFilters={() => setMobileFilterOpen(true)}
             hasActiveFilters={
               Boolean(selectedBrandIds.length > 0 ||
-              minSellingPrice !== undefined ||
-              maxSellingPrice !== undefined ||
-              minPriceCode !== undefined ||
-              maxPriceCode !== undefined ||
-              !inStockOnly ||
-              attributeFilters.length > 0)
+                minSellingPrice !== undefined ||
+                maxSellingPrice !== undefined ||
+                minPriceCode !== undefined ||
+                maxPriceCode !== undefined ||
+                !inStockOnly ||
+                attributeFilters.length > 0)
             }
           />
 
@@ -541,7 +541,7 @@ function CustomerCatalogueContent() {
         </div>
 
         {/* Top Control Bar: Total Count, Sorting & Mobile Filter Toggle (Tablet & Desktop) */}
-        <div className="hidden md:flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="hidden lg:flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs">
           <div className="flex items-center gap-2">
             {/* Tablet Filter Drawer Button */}
             <button
@@ -687,11 +687,10 @@ function CustomerCatalogueContent() {
                             <button
                               type="button"
                               onClick={() => setCurrentPage(p)}
-                              className={`w-8 h-8 rounded-xl text-xs font-bold transition ${
-                                p === pagination.page
-                                  ? "bg-blue-600 text-white shadow-xs"
-                                  : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                              }`}
+                              className={`w-8 h-8 rounded-xl text-xs font-bold transition ${p === pagination.page
+                                ? "bg-blue-600 text-white shadow-xs"
+                                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                }`}
                             >
                               {p}
                             </button>
