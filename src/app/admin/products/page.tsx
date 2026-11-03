@@ -405,6 +405,9 @@ export default function AdminProductsPage() {
         onBrandCreated={(newBrand) => {
           setBrands((prev) => [newBrand, ...prev]);
         }}
+        onBrandDeleted={(deletedBrandId) => {
+          setBrands((prev) => prev.filter((b) => b.id !== deletedBrandId));
+        }}
       />
 
       {/* DELETE CONFIRMATION MODAL */}

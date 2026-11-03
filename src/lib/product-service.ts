@@ -109,6 +109,9 @@ export async function getBrands(): Promise<BrandOption[]> {
       slug: true,
       description: true,
       isActive: true,
+      _count: {
+        select: { products: true },
+      },
     },
   });
 }
@@ -144,7 +147,40 @@ export async function createBrand(input: BrandInput): Promise<BrandOption> {
       slug: true,
       description: true,
       isActive: true,
+      _count: {
+        select: { products: true },
+      },
     },
+  });
+}
+
+/**
+ * Deletes a brand if and only if it has zero associated products.
+ * Never deletes brands with products, inventory, stock movements or historical records.
+ */
+export async function deleteBrand(id: string): Promise<void> {
+  const brand = await prisma.brand.findUnique({
+    where: { id },
+    include: {
+      _count: {
+        select: { products: true },
+      },
+    },
+  });
+
+  if (!brand) {
+    throw new ProductServiceError("Brand not found.", 404);
+  }
+
+  if (brand._count.products > 0) {
+    throw new ProductServiceError(
+      `Cannot delete brand "${brand.name}": It has ${brand._count.products} associated product(s). Brands with products cannot be deleted.`,
+      400
+    );
+  }
+
+  await prisma.brand.delete({
+    where: { id },
   });
 }
 

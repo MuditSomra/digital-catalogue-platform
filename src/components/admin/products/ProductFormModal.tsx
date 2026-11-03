@@ -20,6 +20,7 @@ import {
   ChevronDown,
   ChevronUp,
   FileText,
+  SlidersHorizontal,
 } from "lucide-react";
 import type {
   BrandOption,
@@ -38,6 +39,7 @@ import {
   CHATGPT_PRODUCT_EXTRACTION_PROMPT,
 } from "@/lib/product-import-parser";
 import { BrandModal } from "./BrandModal";
+import { ManageBrandsModal } from "./ManageBrandsModal";
 import { ProductMediaManager } from "./ProductMediaManager";
 import { CascadingCategorySelect } from "@/components/ui/CascadingCategorySelect";
 
@@ -70,6 +72,7 @@ interface ProductFormModalProps {
   categories: CategoryTreeNode[] | FlatCategoryOption[] | any[];
   brands: BrandOption[];
   onBrandCreated: (newBrand: BrandOption) => void;
+  onBrandDeleted?: (deletedBrandId: string) => void;
 }
 
 export function ProductFormModal({
@@ -80,6 +83,7 @@ export function ProductFormModal({
   categories,
   brands,
   onBrandCreated,
+  onBrandDeleted,
 }: ProductFormModalProps) {
   const isEditing = Boolean(productToEdit);
 
@@ -109,6 +113,7 @@ export function ProductFormModal({
 
   // Inline Brand Modal
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
+  const [isManageBrandsModalOpen, setIsManageBrandsModalOpen] = useState(false);
 
   // General State
   const [loading, setLoading] = useState(false);
@@ -119,7 +124,7 @@ export function ProductFormModal({
   const [isAutoFilling, setIsAutoFilling] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [promptCopied, setPromptCopied] = useState(false);
-  const [overwriteManualFields, setOverwriteManualFields] = useState(false);
+  const [overwriteManualFields, setOverwriteManualFields] = useState(true);
   const [isImportExpanded, setIsImportExpanded] = useState(true);
   const [importSummary, setImportSummary] = useState<{
     populated: string[];
@@ -137,7 +142,7 @@ export function ProductFormModal({
       setImportError(null);
       setImportSummary(null);
       setPromptCopied(false);
-      setOverwriteManualFields(false);
+      setOverwriteManualFields(true);
       return;
     }
 
@@ -212,7 +217,22 @@ export function ProductFormModal({
       setCategoryChangedWarning(false);
     }
     setError(null);
-  }, [isOpen, productToEdit, brands, categories]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, productToEdit]);
+
+  // Set default brand for new products if not yet selected and brands list becomes available
+  useEffect(() => {
+    if (isOpen && !productToEdit && !brandId && brands.length > 0) {
+      setBrandId(brands[0].id);
+    }
+  }, [isOpen, productToEdit, brandId, brands]);
+
+  // Set default category for new products if not yet selected and categories list becomes available
+  useEffect(() => {
+    if (isOpen && !productToEdit && !categoryId && categories.length > 0) {
+      setCategoryId(categories[0].id);
+    }
+  }, [isOpen, productToEdit, categoryId, categories]);
 
   // Load category attributes dynamically when categoryId changes
   useEffect(() => {
@@ -671,11 +691,10 @@ export function ProductFormModal({
             <button
               type="button"
               onClick={() => setActiveTab("details")}
-              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 ${
-                activeTab === "details"
-                  ? "bg-card text-foreground shadow-xs border border-border/80"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 ${activeTab === "details"
+                ? "bg-card text-foreground shadow-xs border border-border/80"
+                : "text-muted-foreground hover:text-foreground"
+                }`}
             >
               <Layers className="w-3.5 h-3.5" />
               <span>Details & Specifications</span>
@@ -683,11 +702,10 @@ export function ProductFormModal({
             <button
               type="button"
               onClick={() => setActiveTab("media")}
-              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 ${
-                activeTab === "media"
-                  ? "bg-card text-foreground shadow-xs border border-border/80"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 ${activeTab === "media"
+                ? "bg-card text-foreground shadow-xs border border-border/80"
+                : "text-muted-foreground hover:text-foreground"
+                }`}
             >
               <ImageIcon className="w-3.5 h-3.5" />
               <span>Product Media (Images & Videos)</span>
@@ -730,718 +748,796 @@ export function ProductFormModal({
                 </div>
               )}
 
-          {/* Category Change Warning */}
-          {categoryChangedWarning && (
-            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-start gap-2.5">
-              <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div className="leading-relaxed">
-                <strong>Category Changed:</strong> Specifications that were specific to the previous category will be safely replaced with the specifications for <strong>{selectedCategoryName}</strong> upon saving.
-              </div>
-            </div>
-          )}
-
-          {/* IMPORT PRODUCT INFORMATION (ChatGPT / Box Photo Import) */}
-          <div className="rounded-2xl border border-primary/25 bg-gradient-to-b from-primary/5 via-card to-card p-4 sm:p-5 shadow-xs space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
-                  <Sparkles className="w-4 h-4" />
+              {/* Category Change Warning */}
+              {categoryChangedWarning && (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-start gap-2.5">
+                  <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <strong>Category Changed:</strong> Specifications that were specific to the previous category will be safely replaced with the specifications for <strong>{selectedCategoryName}</strong> upon saving.
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
-                    <span>Import Product Information</span>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25 lowercase tracking-normal">
+              )}
+
+              {/* IMPORT PRODUCT INFORMATION (ChatGPT / Box Photo Import) */}
+              <div className="rounded-2xl border border-primary/25 bg-gradient-to-b from-primary/5 via-card to-card p-4 sm:p-5 shadow-xs space-y-4">
+
+                {/* Header */}
+                {/* <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
+                        <span>Import Product Information</span>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25 lowercase tracking-normal">
                       API-free Auto-Fill
                     </span>
-                  </h4>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Paste ChatGPT-extracted box details to automatically populate product fields, category specifications, and overview tables.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCopyPrompt}
-                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-background hover:bg-muted text-foreground border border-border transition flex items-center gap-1.5 shadow-2xs"
-                  title="Copy the recommended prompt to send to ChatGPT with your box photo"
-                >
-                  {promptCopied ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                      <span className="text-emerald-500 font-bold">Prompt Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5 text-primary" />
-                      <span>Copy ChatGPT Prompt</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsImportExpanded(!isImportExpanded)}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition"
-                  title={isImportExpanded ? "Collapse section" : "Expand section"}
-                >
-                  {isImportExpanded ? (
-                    <ChevronUp className="w-4 h-4" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {isImportExpanded && (
-              <div className="space-y-3.5 pt-1">
-                {/* Import Textarea */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-foreground">
-                    Paste Product Information
-                  </label>
-                  <textarea
-                    value={importText}
-                    onChange={(e) => setImportText(e.target.value)}
-                    placeholder={`Paste complete ChatGPT response here...\n\nExample:\nProduct Name: Prestige Royale Plus 3-Burner Auto Gas Stove\nBrand: Prestige\nModel Number: PR-40281\nMRP: ₹ 8,495\nCategory: Cooking Appliances > Gas Stoves\n\nSpecifications:\n- Burner Count: 3\n- Cooktop Material: Toughened Glass\n- Ignition Type: Automatic`}
-                    rows={5}
-                    className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/50 resize-y"
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    Pasted source text is preserved so you can reference original box details while reviewing fields below.
-                  </p>
-                </div>
-
-                {/* Action Buttons & Options */}
-                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
-                  <div className="flex items-center gap-2">
-                    <label className="inline-flex items-center gap-2 text-[11px] text-muted-foreground cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={overwriteManualFields}
-                        onChange={(e) => setOverwriteManualFields(e.target.checked)}
-                        className="rounded border-border text-primary focus:ring-primary/40 w-3.5 h-3.5"
-                      />
-                      <span>Allow overwriting non-empty fields</span>
-                    </label>
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Paste ChatGPT-extracted box details to automatically populate product fields, category specifications, and overview tables.
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {importText && (
-                      <button
-                        type="button"
-                        onClick={handleClearImport}
-                        disabled={isAutoFilling}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition flex items-center gap-1.5"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span>Clear Text</span>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={handleCopyPrompt}
+                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-background hover:bg-muted text-foreground border border-border transition flex items-center gap-1.5 shadow-2xs"
+                      title="Copy the recommended prompt to send to ChatGPT with your box photo"
+                    >
+                      {promptCopied ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-500" />
+                          <span className="text-emerald-500 font-bold">Prompt Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-primary" />
+                          <span>Copy ChatGPT Prompt</span>
+                        </>
+                      )}
+                    </button>
 
                     <button
                       type="button"
-                      onClick={handleAutoFill}
-                      disabled={!importText.trim() || isAutoFilling}
-                      className="px-4 py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition shadow-sm disabled:opacity-50 flex items-center gap-2"
+                      onClick={() => setIsImportExpanded(!isImportExpanded)}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition"
+                      title={isImportExpanded ? "Collapse section" : "Expand section"}
                     >
-                      {isAutoFilling ? (
-                        <span className="w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                      {isImportExpanded ? (
+                        <ChevronUp className="w-4 h-4" />
                       ) : (
-                        <Sparkles className="w-3.5 h-3.5" />
+                        <ChevronDown className="w-4 h-4" />
                       )}
-                      <span>Auto-fill Fields</span>
+                    </button>
+                  </div>
+                </div> */}
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  {/* Icon, heading and description */}
+                  <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                        Import Product Information
+                      </h4>
+
+                      <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                        Paste ChatGPT-extracted box details to automatically populate product
+                        fields, category specifications, and overview tables.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleCopyPrompt}
+                      className="flex-1 sm:flex-none min-h-9 px-3 py-2 rounded-lg text-[11px] font-semibold bg-background hover:bg-muted text-foreground border border-border transition flex items-center justify-center gap-1.5 shadow-2xs"
+                      title="Copy the recommended prompt to send to ChatGPT with your box photo"
+                    >
+                      {promptCopied ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          <span className="text-emerald-500 font-bold">Prompt Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-primary shrink-0" />
+                          <span>Copy ChatGPT Prompt</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsImportExpanded(!isImportExpanded)}
+                      className="w-9 h-9 shrink-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition flex items-center justify-center"
+                      title={isImportExpanded ? "Collapse section" : "Expand section"}
+                      aria-label={isImportExpanded ? "Collapse section" : "Expand section"}
+                    >
+                      {isImportExpanded ? (
+                        <ChevronUp className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </div>
 
-                {/* Import Error */}
-                {importError && (
-                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                    <span>{importError}</span>
+                {isImportExpanded && (
+                  <div className="space-y-3.5 pt-1">
+                    {/* Import Textarea */}
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-semibold text-foreground">
+                        Paste Product Information
+                      </label>
+                      {/* <textarea
+                        value={importText}
+                        onChange={(e) => setImportText(e.target.value)}
+                        placeholder={`Paste complete ChatGPT response here...\n\nExample:\nProduct Name: Prestige Royale Plus 3-Burner Auto Gas Stove\nBrand: Prestige\nModel Number: PR-40281\nMRP: ₹ 8,495\nCategory: Cooking Appliances > Gas Stoves\n\nSpecifications:\n- Burner Count: 3\n- Cooktop Material: Toughened Glass\n- Ignition Type: Automatic`}
+                        rows={5}
+                        className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/50 resize-y"
+                      /> */}
+                      <textarea
+                        value={importText}
+                        onChange={(e) => setImportText(e.target.value)}
+                        placeholder={`Paste complete ChatGPT response here...`}
+                        rows={10}
+                        className="w-full min-h-[220px] sm:min-h-[280px] px-3.5 py-3 bg-background border border-border rounded-xl text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/50 resize-y"
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Pasted source text is preserved so you can reference original box details while reviewing fields below.
+                      </p>
+                    </div>
+
+                    {/* Action Buttons & Options */}
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+                      <div className="flex items-center gap-2">
+                        <label className="inline-flex items-center gap-2 text-[11px] text-muted-foreground cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={overwriteManualFields}
+                            onChange={(e) => setOverwriteManualFields(e.target.checked)}
+                            className="rounded border-border text-primary focus:ring-primary/40 w-3.5 h-3.5"
+                          />
+                          <span>Allow overwriting non-empty fields</span>
+                        </label>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {importText && (
+                          <button
+                            type="button"
+                            onClick={handleClearImport}
+                            disabled={isAutoFilling}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition flex items-center gap-1.5"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Clear Text</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={handleAutoFill}
+                          disabled={!importText.trim() || isAutoFilling}
+                          className="px-4 py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition shadow-sm disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {isAutoFilling ? (
+                            <span className="w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                          ) : (
+                            <Sparkles className="w-3.5 h-3.5" />
+                          )}
+                          <span>Auto-fill Fields</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Import Error */}
+                    {importError && (
+                      <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                        <span>{importError}</span>
+                      </div>
+                    )}
+
+                    {/* Import Summary Results */}
+                    {importSummary && (
+                      <div className="p-3.5 rounded-xl bg-card border border-border space-y-2.5 text-xs">
+                        <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                          <div className="font-bold text-foreground flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                            <span>Auto-Fill Results</span>
+                          </div>
+                          <span className="text-[11px] text-muted-foreground">
+                            Review and edit values below before saving
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                          {/* Populated Fields */}
+                          {importSummary.populated.length > 0 && (
+                            <div className="p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20 space-y-1.5">
+                              <div className="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5">
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Populated Fields ({importSummary.populated.length})</span>
+                              </div>
+                              <ul className="space-y-1 text-[11px] text-muted-foreground list-disc pl-4">
+                                {importSummary.populated.map((item, idx) => (
+                                  <li key={idx} className="leading-snug">{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Preserved Manual Fields */}
+                          {importSummary.preserved.length > 0 && (
+                            <div className="p-2.5 rounded-lg bg-blue-500/5 border border-blue-500/20 space-y-1.5">
+                              <div className="text-[11px] font-bold text-blue-400 flex items-center gap-1.5">
+                                <Info className="w-3.5 h-3.5" />
+                                <span>Preserved Existing Values ({importSummary.preserved.length})</span>
+                              </div>
+                              <ul className="space-y-1 text-[11px] text-muted-foreground list-disc pl-4">
+                                {importSummary.preserved.map((item, idx) => (
+                                  <li key={idx} className="leading-snug">{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Needs Manual Review */}
+                          {importSummary.review.length > 0 && (
+                            <div className="p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1.5 md:col-span-2">
+                              <div className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
+                                <AlertCircle className="w-3.5 h-3.5" />
+                                <span>Needs Manual Review ({importSummary.review.length})</span>
+                              </div>
+                              <ul className="space-y-1 text-[11px] text-muted-foreground list-disc pl-4">
+                                {importSummary.review.map((item, idx) => (
+                                  <li key={idx} className="leading-snug">{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
+              </div>
 
-                {/* Import Summary Results */}
-                {importSummary && (
-                  <div className="p-3.5 rounded-xl bg-card border border-border space-y-2.5 text-xs">
-                    <div className="flex items-center justify-between border-b border-border/60 pb-2">
-                      <div className="font-bold text-foreground flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                        <span>Auto-Fill Results</span>
+              {/* SECTION 1: BASIC INFORMATION */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-border">
+                  <Layers className="w-4 h-4 text-primary" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                    Basic Information
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Product Name */}
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="block text-xs font-semibold text-foreground">
+                      Product Name <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. Prestige Marvel Plus 3 Burner Toughened Glass Gas Stove"
+                      className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60"
+                      required
+                    />
+                  </div>
+
+                  {/* Brand Selection with inline Add Brand and Manage Brands buttons */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="block text-xs font-semibold text-foreground">
+                        Brand <span className="text-rose-400">*</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsManageBrandsModalOpen(true)}
+                          className="text-[11px] font-semibold text-muted-foreground hover:text-foreground transition flex items-center gap-1 cursor-pointer"
+                          title="Manage and delete unused brands"
+                        >
+                          <SlidersHorizontal className="w-3 h-3" />
+                          <span>Manage Brands</span>
+                        </button>
+                        <span className="text-border text-xs">|</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsBrandModalOpen(true)}
+                          className="text-[11px] font-semibold text-primary hover:text-primary/80 transition flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Add New Brand</span>
+                        </button>
                       </div>
+                    </div>
+                    <select
+                      value={brandId}
+                      onChange={(e) => setBrandId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+                      required
+                    >
+                      <option value="" disabled>Select Brand...</option>
+                      {brands.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Category Hierarchy Selection */}
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="block text-xs font-semibold text-foreground">
+                      Category <span className="text-rose-400">*</span>
+                    </label>
+                    <CascadingCategorySelect
+                      value={categoryId}
+                      onChange={(newCatId, node) => {
+                        setCategoryId(newCatId || "");
+                        if (node) {
+                          setCategoryName(node.name);
+                        }
+                      }}
+                      categories={categories}
+                      allowRootSelection={false}
+                      rootLabel="Select Main Category..."
+                      subCategoryPlaceholder="Select Subcategory..."
+                      required={true}
+                      showPathPreview={true}
+                      idPrefix="product-form-cat"
+                    />
+                  </div>
+
+                  {/* SKU */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-foreground">
+                      SKU (Stock Keeping Unit) <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={sku}
+                      onChange={(e) => setSku(e.target.value.toUpperCase())}
+                      placeholder="e.g. PRS-MVL-3B-BLK"
+                      className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60"
+                      required
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Unique internal inventory code for this item.
+                    </p>
+                  </div>
+
+                  {/* Model Number */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-foreground">
+                      Model Number <span className="text-muted-foreground text-[11px] font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={modelNumber}
+                      onChange={(e) => setModelNumber(e.target.value)}
+                      placeholder="e.g. Marvel Plus 3B GT 03"
+                      className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Manufacturer model number printed on the product or box.
+                    </p>
+                  </div>
+
+                  {/* Description */}
+                  <div className="space-y-1.5 md:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-foreground">
+                        Product Overview / Description <span className="text-muted-foreground text-[11px] font-normal">(Optional)</span>
+                      </label>
                       <span className="text-[11px] text-muted-foreground">
-                        Review and edit values below before saving
+                        Formatted as specification tables & feature bullets in showroom
                       </span>
                     </div>
+                    {/* <textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="e.g. Elegant black toughened glass cooktop with high efficiency brass burners and spill-proof design..."
+                      rows={5}
+                      className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-xs sm:text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60 resize-y"
+                    /> */}
+                    <textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="e.g. Elegant black toughened glass cooktop with high efficiency brass burners and spill-proof design..."
+                      rows={8}
+                      className="w-full min-h-[180px] sm:min-h-[240px] px-3.5 py-3 bg-background border border-border rounded-xl text-xs sm:text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60 resize-y"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Preserves all specifications, key features, and accessories from pasted source. Editable before saving.
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                      {/* Populated Fields */}
-                      {importSummary.populated.length > 0 && (
-                        <div className="p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20 space-y-1.5">
-                          <div className="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5">
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Populated Fields ({importSummary.populated.length})</span>
-                          </div>
-                          <ul className="space-y-1 text-[11px] text-muted-foreground list-disc pl-4">
-                            {importSummary.populated.map((item, idx) => (
-                              <li key={idx} className="leading-snug">{item}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+              {/* SECTION 2: PRICING & PRICE CODE */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-border">
+                  <DollarSign className="w-4 h-4 text-emerald-400" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                    Pricing & Price Code
+                  </h4>
+                </div>
 
-                      {/* Preserved Manual Fields */}
-                      {importSummary.preserved.length > 0 && (
-                        <div className="p-2.5 rounded-lg bg-blue-500/5 border border-blue-500/20 space-y-1.5">
-                          <div className="text-[11px] font-bold text-blue-400 flex items-center gap-1.5">
-                            <Info className="w-3.5 h-3.5" />
-                            <span>Preserved Existing Values ({importSummary.preserved.length})</span>
-                          </div>
-                          <ul className="space-y-1 text-[11px] text-muted-foreground list-disc pl-4">
-                            {importSummary.preserved.map((item, idx) => (
-                              <li key={idx} className="leading-snug">{item}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* Needs Manual Review */}
-                      {importSummary.review.length > 0 && (
-                        <div className="p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1.5 md:col-span-2">
-                          <div className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
-                            <AlertCircle className="w-3.5 h-3.5" />
-                            <span>Needs Manual Review ({importSummary.review.length})</span>
-                          </div>
-                          <ul className="space-y-1 text-[11px] text-muted-foreground list-disc pl-4">
-                            {importSummary.review.map((item, idx) => (
-                              <li key={idx} className="leading-snug">{item}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* MRP */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-foreground">
+                      MRP (₹) <span className="text-rose-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={mrp}
+                        onChange={(e) => setMrp(e.target.value)}
+                        placeholder="e.g. 8500"
+                        className="w-full pl-8 pr-3.5 py-2.5 bg-background border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+                        required
+                      />
                     </div>
+                    <p className="text-[11px] text-muted-foreground">Maximum Retail Price printed on box.</p>
+                  </div>
+
+                  {/* Selling Price */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-foreground">
+                      Selling Price (₹) <span className="text-muted-foreground text-[11px] font-normal">(Optional)</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={sellingPrice}
+                        onChange={(e) => setSellingPrice(e.target.value)}
+                        placeholder="e.g. 6800"
+                        className="w-full pl-8 pr-3.5 py-2.5 bg-background border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Offer / discounted price for customers.</p>
+                  </div>
+
+                  {/* Price Code */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-foreground">
+                      Price Code <span className="text-muted-foreground text-[11px] font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={privatePriceCode}
+                      onChange={(e) => setPrivatePriceCode(e.target.value)}
+                      placeholder="e.g. P850"
+                      className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60"
+                    />
+                    <p className="text-[11px] text-muted-foreground">Shop pricing code (visible to customers).</p>
+                  </div>
+                </div>
+
+                {/* Real-time Discount & Validation Notice */}
+                {discountInfo && (
+                  <div
+                    className={`p-3 rounded-xl border text-xs flex items-center justify-between ${discountInfo.isError
+                      ? "bg-rose-500/10 border-rose-500/20 text-rose-300"
+                      : "bg-emerald-500/10 border-emerald-500/20 text-emerald-300"
+                      }`}
+                  >
+                    {discountInfo.isError ? (
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                        <span>{discountInfo.message}</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <Percent className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span>
+                            Automatic Discount: <strong>{discountInfo.percent}% OFF</strong>
+                          </span>
+                        </div>
+                        <div className="font-semibold text-emerald-200">
+                          Customer Saves: ₹{(discountInfo.savings ?? 0).toLocaleString("en-IN")}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* SECTION 1: BASIC INFORMATION */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-border">
-              <Layers className="w-4 h-4 text-primary" />
-              <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                Basic Information
-              </h4>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Product Name */}
-              <div className="space-y-1.5 md:col-span-2">
-                <label className="block text-xs font-semibold text-foreground">
-                  Product Name <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Prestige Marvel Plus 3 Burner Toughened Glass Gas Stove"
-                  className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60"
-                  required
-                />
-              </div>
-
-              {/* Brand Selection with inline Add Brand button */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-foreground">
-                    Brand <span className="text-rose-400">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setIsBrandModalOpen(true)}
-                    className="text-[11px] font-semibold text-primary hover:text-primary/80 transition flex items-center gap-1"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Add New Brand</span>
-                  </button>
+              {/* SECTION 3: WARRANTY & STATUS */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-border">
+                  <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                    Warranty & Status
+                  </h4>
                 </div>
-                <select
-                  value={brandId}
-                  onChange={(e) => setBrandId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-                  required
-                >
-                  <option value="" disabled>Select Brand...</option>
-                  {brands.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
 
-              {/* Category Hierarchy Selection */}
-              <div className="space-y-1.5 md:col-span-2">
-                <label className="block text-xs font-semibold text-foreground">
-                  Category <span className="text-rose-400">*</span>
-                </label>
-                <CascadingCategorySelect
-                  value={categoryId}
-                  onChange={(newCatId, node) => {
-                    setCategoryId(newCatId || "");
-                    if (node) {
-                      setCategoryName(node.name);
-                    }
-                  }}
-                  categories={categories}
-                  allowRootSelection={false}
-                  rootLabel="Select Main Category..."
-                  subCategoryPlaceholder="Select Subcategory..."
-                  required={true}
-                  showPathPreview={true}
-                  idPrefix="product-form-cat"
-                />
-              </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Warranty */}
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="block text-xs font-semibold text-foreground">
+                      Warranty Information <span className="text-muted-foreground text-[11px] font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={warranty}
+                      onChange={(e) => setWarranty(e.target.value)}
+                      placeholder="e.g. 2 Years on Product, 5 Years on Burners"
+                      className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60"
+                    />
+                  </div>
 
-              {/* SKU */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-foreground">
-                  SKU (Stock Keeping Unit) <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={sku}
-                  onChange={(e) => setSku(e.target.value.toUpperCase())}
-                  placeholder="e.g. PRS-MVL-3B-BLK"
-                  className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60"
-                  required
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Unique internal inventory code for this item.
-                </p>
-              </div>
+                  {/* Active Switch */}
+                  <div className="p-3.5 rounded-xl bg-card border border-border flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-semibold text-foreground">Active Status</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        Show this product in store catalogue.
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isActive}
+                        onChange={(e) => setIsActive(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                  </div>
 
-              {/* Model Number */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-foreground">
-                  Model Number <span className="text-muted-foreground text-[11px] font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={modelNumber}
-                  onChange={(e) => setModelNumber(e.target.value)}
-                  placeholder="e.g. Marvel Plus 3B GT 03"
-                  className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60"
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Manufacturer model number printed on the product or box.
-                </p>
-              </div>
-
-              {/* Description */}
-              <div className="space-y-1.5 md:col-span-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-foreground">
-                    Product Overview / Description <span className="text-muted-foreground text-[11px] font-normal">(Optional)</span>
-                  </label>
-                  <span className="text-[11px] text-muted-foreground">
-                    Formatted as specification tables & feature bullets in showroom
-                  </span>
+                  {/* Featured Switch */}
+                  <div className="p-3.5 rounded-xl bg-card border border-border flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-semibold text-foreground">Featured Product</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        Highlight on showcase & homepage.
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isFeatured}
+                        onChange={(e) => setIsFeatured(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                  </div>
                 </div>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="e.g. Elegant black toughened glass cooktop with high efficiency brass burners and spill-proof design..."
-                  rows={5}
-                  className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-xs sm:text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60 resize-y"
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Preserves all specifications, key features, and accessories from pasted source. Editable before saving.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION 2: PRICING & PRICE CODE */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-border">
-              <DollarSign className="w-4 h-4 text-emerald-400" />
-              <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                Pricing & Price Code
-              </h4>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* MRP */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-foreground">
-                  MRP (₹) <span className="text-rose-400">*</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">
-                    ₹
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={mrp}
-                    onChange={(e) => setMrp(e.target.value)}
-                    placeholder="e.g. 8500"
-                    className="w-full pl-8 pr-3.5 py-2.5 bg-background border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-                    required
-                  />
-                </div>
-                <p className="text-[11px] text-muted-foreground">Maximum Retail Price printed on box.</p>
               </div>
 
-              {/* Selling Price */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-foreground">
-                  Selling Price (₹) <span className="text-muted-foreground text-[11px] font-normal">(Optional)</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">
-                    ₹
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={sellingPrice}
-                    onChange={(e) => setSellingPrice(e.target.value)}
-                    placeholder="e.g. 6800"
-                    className="w-full pl-8 pr-3.5 py-2.5 bg-background border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-                  />
-                </div>
-                <p className="text-[11px] text-muted-foreground">Offer / discounted price for customers.</p>
-              </div>
-
-              {/* Price Code */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-foreground">
-                  Price Code <span className="text-muted-foreground text-[11px] font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={privatePriceCode}
-                  onChange={(e) => setPrivatePriceCode(e.target.value)}
-                  placeholder="e.g. P850"
-                  className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60"
-                />
-                <p className="text-[11px] text-muted-foreground">Shop pricing code (visible to customers).</p>
-              </div>
-            </div>
-
-            {/* Real-time Discount & Validation Notice */}
-            {discountInfo && (
-              <div
-                className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
-                  discountInfo.isError
-                    ? "bg-rose-500/10 border-rose-500/20 text-rose-300"
-                    : "bg-emerald-500/10 border-emerald-500/20 text-emerald-300"
-                }`}
-              >
-                {discountInfo.isError ? (
+              {/* SECTION 4: DYNAMIC SPECIFICATIONS */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-border">
                   <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                    <span>{discountInfo.message}</span>
+                    <Sparkles className="w-4 h-4 text-purple-400" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                      Specifications for {selectedCategoryName}
+                    </h4>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground">
+                    {categoryAttributes.length} dynamic specification(s)
+                  </span>
+                </div>
+
+                {loadingAttributes ? (
+                  <div className="py-8 flex flex-col items-center justify-center text-muted-foreground text-xs gap-2">
+                    <span className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    <span>Loading specifications for {selectedCategoryName}...</span>
+                  </div>
+                ) : categoryAttributes.length === 0 ? (
+                  <div className="p-6 rounded-xl bg-muted/20 border border-border text-center text-xs text-muted-foreground">
+                    No custom specifications have been configured for this category yet. You can manage specifications in the Categories admin page.
                   </div>
                 ) : (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <Percent className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>
-                        Automatic Discount: <strong>{discountInfo.percent}% OFF</strong>
-                      </span>
-                    </div>
-                    <div className="font-semibold text-emerald-200">
-                      Customer Saves: ₹{(discountInfo.savings ?? 0).toLocaleString("en-IN")}
-                    </div>
-                  </>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {categoryAttributes.map((attr) => {
+                      const currentVal = attributeValues[attr.id];
+
+                      return (
+                        <div
+                          key={attr.id}
+                          className={`space-y-1.5 p-3 rounded-xl border border-border/70 bg-card/60 ${attr.type === "MULTI_SELECT" || attr.type === "TEXT"
+                            ? "md:col-span-2"
+                            : ""
+                            }`}
+                        >
+                          {/* Label + Required Tag */}
+                          <div className="flex items-center justify-between">
+                            <label className="block text-xs font-semibold text-foreground">
+                              {attr.name}
+                              {attr.unit && (
+                                <span className="text-muted-foreground font-normal ml-1">
+                                  ({attr.unit})
+                                </span>
+                              )}
+                              {attr.isRequired && (
+                                <span className="text-rose-400 ml-1">*</span>
+                              )}
+                            </label>
+                            {attr.isRequired && (
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                Required
+                              </span>
+                            )}
+                          </div>
+
+                          {/* RENDER BY ATTRIBUTE TYPE */}
+                          {attr.type === "SELECT" && (
+                            <select
+                              value={currentVal || ""}
+                              onChange={(e) => handleAttributeChange(attr.id, e.target.value)}
+                              className="w-full px-3.5 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+                              required={attr.isRequired}
+                            >
+                              <option value="">Select option...</option>
+                              {attr.predefinedValues.map((opt) => (
+                                <option key={opt.id} value={opt.id}>
+                                  {opt.label || opt.value}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+
+                          {attr.type === "MULTI_SELECT" && (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {attr.predefinedValues.map((opt) => {
+                                const isChecked = Array.isArray(currentVal)
+                                  ? currentVal.includes(opt.id) || currentVal.includes(opt.value)
+                                  : false;
+
+                                return (
+                                  <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => handleMultiSelectToggle(attr.id, opt.id)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition flex items-center gap-1.5 ${isChecked
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-background text-muted-foreground border-border hover:text-foreground hover:bg-muted"
+                                      }`}
+                                  >
+                                    {isChecked && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
+                                    <span>{opt.label || opt.value}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {attr.type === "BOOLEAN" && (
+                            <div className="flex items-center gap-3 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => handleAttributeChange(attr.id, true)}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition ${currentVal === true || currentVal === "true" || currentVal === "Yes"
+                                  ? "bg-emerald-600 text-white border-emerald-600"
+                                  : "bg-background text-muted-foreground border-border hover:bg-muted"
+                                  }`}
+                              >
+                                Yes
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAttributeChange(attr.id, false)}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition ${currentVal === false || currentVal === "false" || currentVal === "No"
+                                  ? "bg-muted-foreground/30 text-foreground border-border"
+                                  : "bg-background text-muted-foreground border-border hover:bg-muted"
+                                  }`}
+                              >
+                                No
+                              </button>
+                            </div>
+                          )}
+
+                          {attr.type === "NUMBER" && (
+                            <div className="relative">
+                              <input
+                                type="number"
+                                step="any"
+                                value={currentVal !== undefined && currentVal !== null ? currentVal : ""}
+                                onChange={(e) => handleAttributeChange(attr.id, e.target.value)}
+                                placeholder={`e.g. 750`}
+                                className="w-full px-3.5 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+                                required={attr.isRequired}
+                              />
+                              {attr.unit && (
+                                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
+                                  {attr.unit}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {attr.type === "RANGE" && (
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={currentVal !== undefined && currentVal !== null ? currentVal : ""}
+                                onChange={(e) => handleAttributeChange(attr.id, e.target.value)}
+                                placeholder="e.g. 500 - 1000"
+                                className="w-full px-3.5 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+                                required={attr.isRequired}
+                              />
+                              {attr.unit && (
+                                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
+                                  {attr.unit}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {attr.type === "TEXT" && (
+                            <input
+                              type="text"
+                              value={currentVal !== undefined && currentVal !== null ? currentVal : ""}
+                              onChange={(e) => handleAttributeChange(attr.id, e.target.value)}
+                              placeholder={`Enter ${attr.name.toLowerCase()}...`}
+                              className="w-full px-3.5 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+                              required={attr.isRequired}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* SECTION 3: WARRANTY & STATUS */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-border">
-              <ShieldCheck className="w-4 h-4 text-cyan-400" />
-              <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                Warranty & Status
-              </h4>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Warranty */}
-              <div className="space-y-1.5 md:col-span-2">
-                <label className="block text-xs font-semibold text-foreground">
-                  Warranty Information <span className="text-muted-foreground text-[11px] font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={warranty}
-                  onChange={(e) => setWarranty(e.target.value)}
-                  placeholder="e.g. 2 Years on Product, 5 Years on Burners"
-                  className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60"
-                />
+              {/* Form Actions */}
+              <div className="pt-4 border-t border-border flex items-center justify-end gap-3 sticky bottom-0 bg-card/95 backdrop-blur-xs py-2 -mx-2 px-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={loading}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition shadow-md disabled:opacity-50 flex items-center gap-2"
+                >
+                  {loading ? (
+                    <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                  <span>{isEditing ? "Save Product Changes" : "Create Product"}</span>
+                </button>
               </div>
-
-              {/* Active Switch */}
-              <div className="p-3.5 rounded-xl bg-card border border-border flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-semibold text-foreground">Active Status</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Show this product in store catalogue.
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isActive}
-                    onChange={(e) => setIsActive(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                </label>
-              </div>
-
-              {/* Featured Switch */}
-              <div className="p-3.5 rounded-xl bg-card border border-border flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-semibold text-foreground">Featured Product</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Highlight on showcase & homepage.
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isFeatured}
-                    onChange={(e) => setIsFeatured(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION 4: DYNAMIC SPECIFICATIONS */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-border">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-purple-400" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                  Specifications for {selectedCategoryName}
-                </h4>
-              </div>
-              <span className="text-[11px] text-muted-foreground">
-                {categoryAttributes.length} dynamic specification(s)
-              </span>
-            </div>
-
-            {loadingAttributes ? (
-              <div className="py-8 flex flex-col items-center justify-center text-muted-foreground text-xs gap-2">
-                <span className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                <span>Loading specifications for {selectedCategoryName}...</span>
-              </div>
-            ) : categoryAttributes.length === 0 ? (
-              <div className="p-6 rounded-xl bg-muted/20 border border-border text-center text-xs text-muted-foreground">
-                No custom specifications have been configured for this category yet. You can manage specifications in the Categories admin page.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {categoryAttributes.map((attr) => {
-                  const currentVal = attributeValues[attr.id];
-
-                  return (
-                    <div
-                      key={attr.id}
-                      className={`space-y-1.5 p-3 rounded-xl border border-border/70 bg-card/60 ${
-                        attr.type === "MULTI_SELECT" || attr.type === "TEXT"
-                          ? "md:col-span-2"
-                          : ""
-                      }`}
-                    >
-                      {/* Label + Required Tag */}
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-semibold text-foreground">
-                          {attr.name}
-                          {attr.unit && (
-                            <span className="text-muted-foreground font-normal ml-1">
-                              ({attr.unit})
-                            </span>
-                          )}
-                          {attr.isRequired && (
-                            <span className="text-rose-400 ml-1">*</span>
-                          )}
-                        </label>
-                        {attr.isRequired && (
-                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                            Required
-                          </span>
-                        )}
-                      </div>
-
-                      {/* RENDER BY ATTRIBUTE TYPE */}
-                      {attr.type === "SELECT" && (
-                        <select
-                          value={currentVal || ""}
-                          onChange={(e) => handleAttributeChange(attr.id, e.target.value)}
-                          className="w-full px-3.5 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-                          required={attr.isRequired}
-                        >
-                          <option value="">Select option...</option>
-                          {attr.predefinedValues.map((opt) => (
-                            <option key={opt.id} value={opt.id}>
-                              {opt.label || opt.value}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-
-                      {attr.type === "MULTI_SELECT" && (
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          {attr.predefinedValues.map((opt) => {
-                            const isChecked = Array.isArray(currentVal)
-                              ? currentVal.includes(opt.id) || currentVal.includes(opt.value)
-                              : false;
-
-                            return (
-                              <button
-                                key={opt.id}
-                                type="button"
-                                onClick={() => handleMultiSelectToggle(attr.id, opt.id)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition flex items-center gap-1.5 ${
-                                  isChecked
-                                    ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-background text-muted-foreground border-border hover:text-foreground hover:bg-muted"
-                                }`}
-                              >
-                                {isChecked && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
-                                <span>{opt.label || opt.value}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {attr.type === "BOOLEAN" && (
-                        <div className="flex items-center gap-3 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => handleAttributeChange(attr.id, true)}
-                            className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                              currentVal === true || currentVal === "true" || currentVal === "Yes"
-                                ? "bg-emerald-600 text-white border-emerald-600"
-                                : "bg-background text-muted-foreground border-border hover:bg-muted"
-                            }`}
-                          >
-                            Yes
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleAttributeChange(attr.id, false)}
-                            className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                              currentVal === false || currentVal === "false" || currentVal === "No"
-                                ? "bg-muted-foreground/30 text-foreground border-border"
-                                : "bg-background text-muted-foreground border-border hover:bg-muted"
-                            }`}
-                          >
-                            No
-                          </button>
-                        </div>
-                      )}
-
-                      {attr.type === "NUMBER" && (
-                        <div className="relative">
-                          <input
-                            type="number"
-                            step="any"
-                            value={currentVal !== undefined && currentVal !== null ? currentVal : ""}
-                            onChange={(e) => handleAttributeChange(attr.id, e.target.value)}
-                            placeholder={`e.g. 750`}
-                            className="w-full px-3.5 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-                            required={attr.isRequired}
-                          />
-                          {attr.unit && (
-                            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
-                              {attr.unit}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {attr.type === "RANGE" && (
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={currentVal !== undefined && currentVal !== null ? currentVal : ""}
-                            onChange={(e) => handleAttributeChange(attr.id, e.target.value)}
-                            placeholder="e.g. 500 - 1000"
-                            className="w-full px-3.5 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-                            required={attr.isRequired}
-                          />
-                          {attr.unit && (
-                            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
-                              {attr.unit}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {attr.type === "TEXT" && (
-                        <input
-                          type="text"
-                          value={currentVal !== undefined && currentVal !== null ? currentVal : ""}
-                          onChange={(e) => handleAttributeChange(attr.id, e.target.value)}
-                          placeholder={`Enter ${attr.name.toLowerCase()}...`}
-                          className="w-full px-3.5 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-                          required={attr.isRequired}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Form Actions */}
-          <div className="pt-4 border-t border-border flex items-center justify-end gap-3 sticky bottom-0 bg-card/95 backdrop-blur-xs py-2 -mx-2 px-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition shadow-md disabled:opacity-50 flex items-center gap-2"
-            >
-              {loading ? (
-                <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4" />
-              )}
-              <span>{isEditing ? "Save Product Changes" : "Create Product"}</span>
-            </button>
-          </div>
-        </form>
-      )}
-    </div>
-  </Modal>
+            </form>
+          )}
+        </div>
+      </Modal>
 
       {/* Inline Brand Creation Modal */}
       <BrandModal
@@ -1450,6 +1546,22 @@ export function ProductFormModal({
         onBrandCreated={(brand: BrandOption) => {
           onBrandCreated(brand);
           setBrandId(brand.id);
+        }}
+      />
+
+      {/* Inline Manage Brands Modal */}
+      <ManageBrandsModal
+        isOpen={isManageBrandsModalOpen}
+        onClose={() => setIsManageBrandsModalOpen(false)}
+        brands={brands}
+        onBrandDeleted={(deletedBrandId) => {
+          if (onBrandDeleted) {
+            onBrandDeleted(deletedBrandId);
+          }
+          if (brandId === deletedBrandId) {
+            const remaining = brands.filter((b) => b.id !== deletedBrandId);
+            setBrandId(remaining.length > 0 ? remaining[0].id : "");
+          }
         }}
       />
     </>

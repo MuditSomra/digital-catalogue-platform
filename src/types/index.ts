@@ -115,6 +115,9 @@ export interface BrandOption {
   slug: string;
   description: string | null;
   isActive: boolean;
+  _count?: {
+    products: number;
+  };
 }
 
 // Product Image Item
