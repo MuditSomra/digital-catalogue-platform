@@ -395,7 +395,6 @@ export function ProductFormModal({
       // 1. Basic Fields
       applyField("Product Name", parsed.name, name, setName);
       applyField("Model Number", parsed.modelNumber, modelNumber, setModelNumber);
-      applyField("SKU", parsed.sku, sku, setSku);
       applyField("MRP", parsed.mrp, mrp, setMrp, "MRP (₹)");
       applyField("Selling Price", parsed.sellingPrice, sellingPrice, setSellingPrice, "Selling Price (₹)");
       applyField("Private Price Code", parsed.privatePriceCode, privatePriceCode, setPrivatePriceCode);
@@ -544,10 +543,6 @@ export function ProductFormModal({
       setError("Please select a category.");
       return;
     }
-    if (!sku.trim()) {
-      setError("Please enter a SKU.");
-      return;
-    }
 
     const parsedMrp = parseFloat(mrp);
     if (isNaN(parsedMrp) || parsedMrp <= 0) {
@@ -645,7 +640,6 @@ export function ProductFormModal({
       name: name.trim(),
       brandId,
       categoryId,
-      sku: sku.trim(),
       modelNumber: modelNumber.trim() || null,
       description: description.trim() || null,
       mrp: parsedMrp,
@@ -1105,19 +1099,44 @@ export function ProductFormModal({
 
                   {/* SKU */}
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-foreground">
-                      SKU (Stock Keeping Unit) <span className="text-rose-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={sku}
-                      onChange={(e) => setSku(e.target.value.toUpperCase())}
-                      placeholder="e.g. PRS-MVL-3B-BLK"
-                      className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60"
-                      required
-                    />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-foreground">
+                        SKU (Stock Keeping Unit)
+                      </label>
+                      {isEditing ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border border-border">
+                          Read-only
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          <Sparkles className="w-3 h-3" /> Auto-generated
+                        </span>
+                      )}
+                    </div>
+
+                    {isEditing ? (
+                      <div className="w-full px-3.5 py-2.5 bg-muted/30 border border-border rounded-xl text-sm font-mono font-medium text-foreground flex items-center justify-between select-all">
+                        <span>{productToEdit && "sku" in productToEdit ? productToEdit.sku : sku}</span>
+                        <span className="text-[11px] text-muted-foreground font-sans">
+                          Permanent
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="w-full px-3.5 py-2.5 bg-muted/20 border border-dashed border-border rounded-xl flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Auto-generated SKU</span>
+                        </span>
+                        <span className="text-[11px] text-muted-foreground italic">
+                          Assigned upon saving
+                        </span>
+                      </div>
+                    )}
+
                     <p className="text-[11px] text-muted-foreground">
-                      Unique internal inventory code for this item.
+                      {isEditing
+                        ? "Internal inventory code for this product. Product SKUs cannot be modified."
+                        : "The SKU is assigned automatically based on the selected category when the product is saved."}
                     </p>
                   </div>
 

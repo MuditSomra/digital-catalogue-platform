@@ -177,6 +177,7 @@ export default function AdminCategoriesPage() {
     parentId: string | null;
     description: string | null;
     isActive: boolean;
+    skuPrefix?: string | null;
   }) => {
     if (data.id) {
       // Update
@@ -188,6 +189,7 @@ export default function AdminCategoriesPage() {
           parentId: data.parentId,
           description: data.description,
           isActive: data.isActive,
+          skuPrefix: data.skuPrefix,
         }),
       });
       const json = await res.json();
@@ -207,6 +209,7 @@ export default function AdminCategoriesPage() {
           parentId: data.parentId,
           description: data.description,
           isActive: data.isActive,
+          skuPrefix: data.skuPrefix,
         }),
       });
       const json = await res.json();

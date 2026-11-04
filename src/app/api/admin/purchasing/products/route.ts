@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 const createProductWithQuotationSchema = z.object({
   name: z.string().trim().min(2, "Product name must be at least 2 characters"),
-  sku: z.string().trim().min(2, "SKU must be at least 2 characters"),
+  sku: z.string().trim().min(2, "SKU must be at least 2 characters").optional().nullable(),
   modelNumber: z.string().trim().nullable().optional(),
   description: z.string().trim().nullable().optional(),
   brandId: z.string().min(1, "Please select a brand"),

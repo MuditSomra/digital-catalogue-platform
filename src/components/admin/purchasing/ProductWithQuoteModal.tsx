@@ -15,6 +15,7 @@ import {
   Clock,
   ShieldCheck,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 import type {
   BrandOption,
@@ -33,7 +34,6 @@ interface ProductWithQuoteModalProps {
     brandId: string;
     categoryId: string;
     additionalCategoryIds?: string[];
-    sku: string;
     modelNumber?: string | null;
     description?: string | null;
     mrp: number;
@@ -67,7 +67,6 @@ export function ProductWithQuoteModal({
   const [brandId, setBrandId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [additionalCategoryIds, setAdditionalCategoryIds] = useState<string[]>([]);
-  const [sku, setSku] = useState("");
   const [modelNumber, setModelNumber] = useState("");
   const [description, setDescription] = useState("");
   const [mrp, setMrp] = useState("");
@@ -119,7 +118,6 @@ export function ProductWithQuoteModal({
     setBrandId(Array.isArray(brands) && brands.length > 0 ? brands[0].id : "");
     setCategoryId(Array.isArray(categories) && categories.length > 0 ? categories[0].id : "");
     setAdditionalCategoryIds([]);
-    setSku("");
     setModelNumber("");
     setDescription("");
     setMrp("");
@@ -173,10 +171,6 @@ export function ProductWithQuoteModal({
       setError("Please select the primary category.");
       return;
     }
-    if (!sku.trim()) {
-      setError("Please enter a SKU.");
-      return;
-    }
     const numMrp = parseFloat(mrp);
     if (isNaN(numMrp) || numMrp <= 0) {
       setError("Please enter a valid MRP greater than ₹0.");
@@ -218,7 +212,6 @@ export function ProductWithQuoteModal({
         brandId,
         categoryId,
         additionalCategoryIds: additionalCategoryIds.filter((id) => id !== categoryId),
-        sku: sku.trim().toUpperCase(),
         modelNumber: modelNumber.trim() || null,
         description: description.trim() || null,
         mrp: numMrp,
@@ -320,17 +313,26 @@ export function ProductWithQuoteModal({
 
               {/* SKU */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-foreground">
-                  SKU <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={sku}
-                  onChange={(e) => setSku(e.target.value.toUpperCase())}
-                  placeholder="e.g. FBR-ZEN-90-AC"
-                  className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-                  required
-                />
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-foreground">
+                    SKU (Stock Keeping Unit)
+                  </label>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <Sparkles className="w-3 h-3" /> Auto-generated
+                  </span>
+                </div>
+                <div className="w-full px-3.5 py-2.5 bg-muted/20 border border-dashed border-border rounded-xl flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Auto-generated SKU</span>
+                  </span>
+                  <span className="text-[11px] text-muted-foreground italic">
+                    Assigned upon saving
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  The SKU is assigned automatically based on the selected primary category when the product is saved.
+                </p>
               </div>
 
               {/* Primary Category */}

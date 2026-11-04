@@ -45,9 +45,16 @@ export const baseProductSchema = z.object({
   sku: z
     .string()
     .trim()
-    .min(2, "SKU must be at least 2 characters")
     .max(100, "SKU cannot exceed 100 characters")
-    .transform((val) => val.toUpperCase()),
+    .optional()
+    .nullable()
+    .transform((val) => {
+      if (!val || val.length === 0) return undefined;
+      return val.toUpperCase();
+    })
+    .refine((val) => val === undefined || val.length >= 2, {
+      message: "SKU must be at least 2 characters if provided",
+    }),
   modelNumber: z
     .string()
     .trim()

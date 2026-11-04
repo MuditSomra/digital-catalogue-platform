@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { getCategoryWithDescendantIds } from "./category-service";
+import { getCategoryWithDescendantIds, generateNextCategorySku, resolveLevel2Category } from "./category-service";
 import { generateUniqueProductSlug } from "./product-service";
 import type { ProductQuotationGroup, SupplierQuotationItem } from "@/types";
 import { Prisma } from "@prisma/client";
@@ -490,7 +490,7 @@ export async function deleteSupplierQuotation(id: string): Promise<boolean> {
  */
 export async function createProductWithInitialQuotation(input: {
   name: string;
-  sku: string;
+  sku?: string | null;
   modelNumber?: string | null;
   description?: string | null;
   brandId: string;
@@ -528,7 +528,6 @@ export async function createProductWithInitialQuotation(input: {
   } = input;
 
   if (!name?.trim()) throw new PurchasingError("Product name is required.");
-  if (!sku?.trim()) throw new PurchasingError("SKU is required.");
   if (!brandId) throw new PurchasingError("Brand is required.");
   if (!categoryId) throw new PurchasingError("Primary category is required.");
   if (!mrp || mrp <= 0) throw new PurchasingError("Valid MRP is required.");
@@ -537,24 +536,20 @@ export async function createProductWithInitialQuotation(input: {
     throw new PurchasingError("A valid initial supplier quotation (supplier name and quoted price) is required.");
   }
 
-  // Check SKU uniqueness
-  const existingSku = await prisma.product.findUnique({ where: { sku: sku.trim() } });
-  if (existingSku) {
-    throw new PurchasingError(`SKU '${sku}' already exists.`);
-  }
-
   const slug = await generateUniqueProductSlug(name.trim(), modelNumber);
 
   // Aggregate all unique categories
   const allCategoryIds = Array.from(new Set([categoryId, ...categoryIds.filter(Boolean)]));
 
-  // Create Product in transaction
+  // Create Product in transaction (SKU is always generated server-side)
   const result = await prisma.$transaction(async (tx) => {
+    const finalSku = await generateNextCategorySku(categoryId, tx);
+
     const product = await tx.product.create({
       data: {
         name: name.trim(),
         slug,
-        sku: sku.trim().toUpperCase(),
+        sku: finalSku,
         modelNumber: modelNumber?.trim() || null,
         description: description?.trim() || null,
         brandId,

@@ -1,10 +1,12 @@
 import { prisma } from "./prisma";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { slugify } from "./slugify";
 import { timeOperation } from "./perf-timing";
 import type {
   CategoryTreeNode,
   CategoryBreadcrumb,
   CategoryDetailView,
+  FlatCategoryOption,
 } from "../types";
 import type { CreateCategoryInput, UpdateCategoryInput } from "../validations/category";
 
@@ -111,6 +113,8 @@ export async function getCategoriesTree(): Promise<CategoryTreeNode[]> {
       parentId: cat.parentId,
       sortOrder: cat.sortOrder,
       isActive: cat.isActive,
+      skuPrefix: cat.skuPrefix,
+      skuLastNumber: cat.skuLastNumber,
       createdAt: cat.createdAt,
       updatedAt: cat.updatedAt,
       _count: cat._count,
@@ -207,9 +211,7 @@ export async function getCatalogueCategoriesTree(): Promise<CategoryTreeNode[]> 
  * Retrieves a flat list of categories formatted for parent selection dropdowns.
  * Example label: "Kitchen Appliances > Cooking Appliances > Gas Stoves"
  */
-export async function getFlatCategoryOptions(excludeCategoryId?: string): Promise<
-  { id: string; name: string; path: string; depth: number; isDisabled: boolean }[]
-> {
+export async function getFlatCategoryOptions(excludeCategoryId?: string): Promise<FlatCategoryOption[]> {
   const allCategories = await prisma.category.findMany({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     select: {
@@ -217,6 +219,8 @@ export async function getFlatCategoryOptions(excludeCategoryId?: string): Promis
       name: true,
       parentId: true,
       isActive: true,
+      skuPrefix: true,
+      skuLastNumber: true,
     },
   });
 
@@ -264,6 +268,8 @@ export async function getFlatCategoryOptions(excludeCategoryId?: string): Promis
       id: cat.id,
       name: cat.name,
       parentId: cat.parentId,
+      skuPrefix: cat.skuPrefix,
+      skuLastNumber: cat.skuLastNumber,
       path: pathParts.join(" > "),
       depth: pathParts.length - 1,
       isDisabled: disabledIds.has(cat.id),
@@ -349,18 +355,125 @@ export async function getCategoryById(id: string): Promise<CategoryDetailView> {
 }
 
 /**
+ * Resolves the immediate Level 2 ancestor category for a given category ID.
+ * If the category is Level 2 (child of root), returns it.
+ * If the category is Level 3+ (grandchild of root), traverses up to Level 2.
+ * If the category is Level 1 (root), throws an error.
+ */
+export async function resolveLevel2Category(
+  categoryId: string,
+  client: any = prisma
+) {
+  let curr = await client.category.findUnique({
+    where: { id: categoryId },
+    select: { id: true, name: true, parentId: true, skuPrefix: true, skuLastNumber: true },
+  });
+
+  if (!curr) {
+    throw new CategoryServiceError("Category not found.", 404);
+  }
+
+  // Build ancestor chain from root downwards
+  const chain: Array<{
+    id: string;
+    name: string;
+    parentId: string | null;
+    skuPrefix: string | null;
+    skuLastNumber: number | null;
+  }> = [curr];
+
+  const visited = new Set<string>([curr.id]);
+  while (curr.parentId && !visited.has(curr.parentId)) {
+    visited.add(curr.parentId);
+    const parent = await client.category.findUnique({
+      where: { id: curr.parentId },
+      select: { id: true, name: true, parentId: true, skuPrefix: true, skuLastNumber: true },
+    });
+    if (!parent) break;
+    chain.unshift(parent);
+    curr = parent;
+  }
+
+  if (chain.length < 2) {
+    throw new CategoryServiceError(
+      `Cannot assign products to Root category '${chain[0].name}'. Products must belong to a Level 2 category or its subcategories.`,
+      400
+    );
+  }
+
+  // chain[0] is Level 1 (Root), chain[1] is Level 2 (Product Category)
+  return chain[1];
+}
+
+/**
+ * Atomically increments the Level 2 category sequence and returns the formatted SKU.
+ * Uses PostgreSQL UPDATE ... RETURNING with row-level lock.
+ * Guaranteed zero race conditions and automatic rollback on transaction failure.
+ */
+export async function generateNextCategorySku(
+  categoryId: string,
+  tx: Prisma.TransactionClient
+): Promise<string> {
+  const level2 = await resolveLevel2Category(categoryId, tx as any);
+
+  const [result] = await tx.$queryRaw<any[]>`
+    UPDATE categories
+    SET "skuLastNumber" = COALESCE("skuLastNumber", 0) + 1,
+        "updatedAt" = NOW()
+    WHERE id = ${level2.id} AND "skuPrefix" IS NOT NULL
+    RETURNING "skuPrefix", "skuLastNumber";
+  `;
+
+  const prefix = result?.skuPrefix ?? result?.skuprefix;
+  const lastNum = result?.skuLastNumber ?? result?.skulastnumber;
+
+  if (!result || !prefix || lastNum == null) {
+    throw new CategoryServiceError(
+      `Level 2 category '${level2.name}' does not have an approved SKU Prefix configured. Please configure a unique prefix in Category settings.`,
+      400
+    );
+  }
+
+  const paddedNumber = String(lastNum).padStart(3, "0");
+  return `${prefix}-${paddedNumber}`;
+}
+
+/**
  * Creates a new category with smart defaults and automatic slug generation.
  */
 export async function createCategory(input: CreateCategoryInput) {
-  // 1. If parentId specified, verify parent exists
+  // 1. If parentId specified, verify parent exists and check hierarchy depth
+  let isLevel2 = false;
   if (input.parentId) {
-    const parentExists = await prisma.category.findUnique({
+    const parent = await prisma.category.findUnique({
       where: { id: input.parentId },
-      select: { id: true },
+      select: { id: true, parentId: true },
     });
-    if (!parentExists) {
+    if (!parent) {
       throw new CategoryServiceError("The selected parent category does not exist.");
     }
+    // If parent is a root category (parentId === null), this new category is Level 2
+    isLevel2 = parent.parentId === null;
+  }
+
+  let finalPrefix: string | null = null;
+  if (isLevel2) {
+    const rawPrefix = input.skuPrefix?.trim().toUpperCase();
+    if (!rawPrefix) {
+      throw new CategoryServiceError("A unique 2-5 letter SKU Prefix is required for Level 2 product categories.");
+    }
+    if (!/^[A-Z]{2,5}$/.test(rawPrefix)) {
+      throw new CategoryServiceError("SKU Prefix must be 2 to 5 uppercase letters (e.g. GAS, CHM, MIX).");
+    }
+
+    const existingPrefix = await prisma.category.findUnique({
+      where: { skuPrefix: rawPrefix },
+      select: { id: true, name: true },
+    });
+    if (existingPrefix) {
+      throw new CategoryServiceError(`SKU Prefix '${rawPrefix}' is already used by category '${existingPrefix.name}'.`);
+    }
+    finalPrefix = rawPrefix;
   }
 
   // 2. Generate unique slug
@@ -385,6 +498,8 @@ export async function createCategory(input: CreateCategoryInput) {
       parentId: input.parentId || null,
       sortOrder,
       isActive: input.isActive ?? true,
+      skuPrefix: finalPrefix,
+      skuLastNumber: isLevel2 ? 0 : null,
     },
   });
 
@@ -397,7 +512,7 @@ export async function createCategory(input: CreateCategoryInput) {
 export async function updateCategory(id: string, input: UpdateCategoryInput) {
   const existing = await prisma.category.findUnique({
     where: { id },
-    select: { id: true, parentId: true, name: true, slug: true },
+    select: { id: true, parentId: true, name: true, slug: true, skuPrefix: true, skuLastNumber: true },
   });
 
   if (!existing) {
@@ -409,6 +524,44 @@ export async function updateCategory(id: string, input: UpdateCategoryInput) {
     const newParentId = input.parentId || null;
     if (newParentId) {
       await validateNoCircularParent(id, newParentId);
+    }
+  }
+
+  // Handle SKU Prefix update
+  let newSkuPrefix: string | null | undefined = undefined;
+  if (input.skuPrefix !== undefined) {
+    const normalized = input.skuPrefix ? input.skuPrefix.trim().toUpperCase() : null;
+    if (normalized !== existing.skuPrefix) {
+      // Once a category has started generating SKUs, prevent changing its prefix
+      if ((existing.skuLastNumber ?? 0) > 0) {
+        throw new CategoryServiceError("Cannot change SKU Prefix for a category that already has generated SKUs.");
+      }
+      const productCount = await prisma.product.count({
+        where: {
+          OR: [
+            { categoryId: id },
+            { category: { parentId: id } },
+            { category: { parent: { parentId: id } } },
+          ],
+        },
+      });
+      if (productCount > 0) {
+        throw new CategoryServiceError("Cannot change SKU Prefix for a category that already has associated products.");
+      }
+
+      if (normalized) {
+        if (!/^[A-Z]{2,5}$/.test(normalized)) {
+          throw new CategoryServiceError("SKU Prefix must be 2 to 5 uppercase letters (e.g. GAS, CHM, MIX).");
+        }
+        const duplicate = await prisma.category.findFirst({
+          where: { skuPrefix: normalized, id: { not: id } },
+          select: { name: true },
+        });
+        if (duplicate) {
+          throw new CategoryServiceError(`SKU Prefix '${normalized}' is already used by category '${duplicate.name}'.`);
+        }
+      }
+      newSkuPrefix = normalized;
     }
   }
 
@@ -430,6 +583,7 @@ export async function updateCategory(id: string, input: UpdateCategoryInput) {
       ...(input.parentId !== undefined && { parentId: input.parentId || null }),
       ...(input.sortOrder !== undefined && { sortOrder: input.sortOrder }),
       ...(input.isActive !== undefined && { isActive: input.isActive }),
+      ...(newSkuPrefix !== undefined && { skuPrefix: newSkuPrefix }),
     },
   });
 

@@ -137,6 +137,9 @@ model Category {
   parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
   children Category[] @relation("CategoryHierarchy")
 
+  skuPrefix     String?  @unique
+  skuLastNumber Int?     @default(0)
+
   // Relations
   attributes        CategoryAttribute[]
   products          Product[]
@@ -144,6 +147,7 @@ model Category {
 
   @@index([parentId])
   @@index([slug])
+  @@index([skuPrefix])
   @@index([isActive, sortOrder])
   @@map("categories")
 }

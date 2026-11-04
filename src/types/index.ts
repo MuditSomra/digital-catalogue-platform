@@ -36,6 +36,8 @@ export interface CategoryTreeNode {
   parentId: string | null;
   sortOrder: number;
   isActive: boolean;
+  skuPrefix?: string | null;
+  skuLastNumber?: number | null;
   createdAt: Date;
   updatedAt: Date;
   _count: {
@@ -59,6 +61,8 @@ export interface FlatCategoryOption {
   depth: number;
   isDisabled: boolean;
   parentId?: string | null;
+  skuPrefix?: string | null;
+  skuLastNumber?: number | null;
 }
 
 export interface CategoryDetailView {
@@ -69,6 +73,8 @@ export interface CategoryDetailView {
   parentId: string | null;
   sortOrder: number;
   isActive: boolean;
+  skuPrefix?: string | null;
+  skuLastNumber?: number | null;
   createdAt: Date;
   updatedAt: Date;
   parent: {

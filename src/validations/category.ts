@@ -37,6 +37,15 @@ export const createCategorySchema = z.object({
     .optional()
     .nullable()
     .transform((val) => (val === "" ? null : val)),
+  skuPrefix: z
+    .string()
+    .trim()
+    .max(5, "SKU Prefix cannot exceed 5 characters")
+    .regex(/^[A-Za-z]{2,5}$/, "SKU Prefix must be 2 to 5 letters (e.g. GAS, CHM, MIX)")
+    .transform((val) => val.toUpperCase())
+    .optional()
+    .nullable()
+    .transform((val) => (val === "" ? null : val)),
   sortOrder: z.coerce.number().int().optional().default(0),
   isActive: z.boolean().optional().default(true),
 });
@@ -75,6 +84,15 @@ export const updateCategorySchema = z.object({
   parentId: z
     .string()
     .trim()
+    .optional()
+    .nullable()
+    .transform((val) => (val === "" ? null : val)),
+  skuPrefix: z
+    .string()
+    .trim()
+    .max(5, "SKU Prefix cannot exceed 5 characters")
+    .regex(/^[A-Za-z]{2,5}$/, "SKU Prefix must be 2 to 5 letters (e.g. GAS, CHM, MIX)")
+    .transform((val) => val.toUpperCase())
     .optional()
     .nullable()
     .transform((val) => (val === "" ? null : val)),

@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { FolderTree, CheckCircle2, AlertCircle } from "lucide-react";
+import { FolderTree, CheckCircle2, AlertCircle, Lock, Hash } from "lucide-react";
 import type { CategoryTreeNode, FlatCategoryOption } from "@/types";
 import { CascadingCategorySelect } from "@/components/ui/CascadingCategorySelect";
 
@@ -15,6 +15,7 @@ interface CategoryModalProps {
     parentId: string | null;
     description: string | null;
     isActive: boolean;
+    skuPrefix?: string | null;
   }) => Promise<void>;
   categoryToEdit?: {
     id: string;
@@ -22,6 +23,8 @@ interface CategoryModalProps {
     parentId: string | null;
     description: string | null;
     isActive: boolean;
+    skuPrefix?: string | null;
+    skuLastNumber?: number | null;
   } | null;
   parentCategoryId?: string | null;
   flatCategories?: FlatCategoryOption[];
@@ -40,6 +43,7 @@ export function CategoryModal({
   const isEditing = Boolean(categoryToEdit);
   const [name, setName] = useState("");
   const [parentId, setParentId] = useState<string | null>(null);
+  const [skuPrefix, setSkuPrefix] = useState("");
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -51,22 +55,71 @@ export function CategoryModal({
       if (categoryToEdit) {
         setName(categoryToEdit.name);
         setParentId(categoryToEdit.parentId);
+        setSkuPrefix(categoryToEdit.skuPrefix || "");
         setDescription(categoryToEdit.description || "");
         setIsActive(categoryToEdit.isActive);
       } else {
         setName("");
         setParentId(parentCategoryId || null);
+        setSkuPrefix("");
         setDescription("");
         setIsActive(true);
       }
     }
   }, [isOpen, categoryToEdit, parentCategoryId]);
 
+  // Determine if the category being created or edited is Level 2 (immediate child of Root)
+  const isLevel2 = useMemo(() => {
+    // If editing and category already has a skuPrefix, it is Level 2
+    if (isEditing && categoryToEdit?.skuPrefix) {
+      return true;
+    }
+
+    if (!parentId) {
+      // Root category (Level 1)
+      return false;
+    }
+
+    // Check in flatCategories
+    if (flatCategories && flatCategories.length > 0) {
+      const parentCat = flatCategories.find((c) => c.id === parentId);
+      if (parentCat) {
+        return parentCat.parentId === null || parentCat.depth === 0;
+      }
+    }
+
+    // Check in categories tree
+    if (categories && Array.isArray(categories)) {
+      return categories.some(
+        (node: any) => node.id === parentId && (node.parentId === null || !node.parentId)
+      );
+    }
+
+    return false;
+  }, [parentId, flatCategories, categories, isEditing, categoryToEdit]);
+
+  // If editing an existing Level 2 category that has already generated SKUs, lock prefix
+  const isPrefixLocked = Boolean(isEditing && ((categoryToEdit?.skuLastNumber ?? 0) > 0));
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setError("Please enter a category name.");
       return;
+    }
+
+    let cleanPrefix: string | null = null;
+    if (isLevel2) {
+      const trimmed = skuPrefix.trim().toUpperCase();
+      if (!trimmed) {
+        setError("Please enter a SKU Prefix for this Level 2 product category.");
+        return;
+      }
+      if (!/^[A-Z]{2,5}$/.test(trimmed)) {
+        setError("SKU Prefix must be 2 to 5 uppercase letters (e.g. GAS, CHM, MIX).");
+        return;
+      }
+      cleanPrefix = trimmed;
     }
 
     try {
@@ -78,6 +131,7 @@ export function CategoryModal({
         parentId: parentId || null,
         description: description.trim() || null,
         isActive,
+        skuPrefix: isLevel2 ? cleanPrefix : null,
       });
       onClose();
     } catch (err: unknown) {
@@ -153,6 +207,60 @@ export function CategoryModal({
             Place this category inside an existing category (e.g. place "Gas Stoves" under "Cooking Appliances").
           </p>
         </div>
+
+        {/* SKU Prefix (Level 2 categories only) */}
+        {isLevel2 ? (
+          <div className="space-y-1.5 p-3.5 rounded-xl bg-primary/5 border border-primary/20">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Hash className="w-3.5 h-3.5 text-primary" />
+                <span>SKU Prefix</span>
+                <span className="text-rose-400">*</span>
+              </label>
+              {isPrefixLocked ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                  <Lock className="w-3 h-3" /> Locked ({categoryToEdit?.skuLastNumber ?? 0} SKUs generated)
+                </span>
+              ) : (
+                <span className="text-[11px] text-muted-foreground font-mono">
+                  Preview: <strong className="text-foreground">{skuPrefix ? `${skuPrefix.toUpperCase()}-001` : "PREFIX-001"}</strong>
+                </span>
+              )}
+            </div>
+
+            <div className="relative">
+              <input
+                type="text"
+                value={skuPrefix}
+                onChange={(e) => setSkuPrefix(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))}
+                placeholder="e.g. GAS, CHM, MIX, VAC"
+                maxLength={5}
+                disabled={isPrefixLocked}
+                className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-sm font-mono tracking-wider text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition placeholder:text-muted-foreground/60 disabled:opacity-60 disabled:cursor-not-allowed"
+                required={isLevel2}
+              />
+              {isPrefixLocked && (
+                <Lock className="w-4 h-4 text-muted-foreground absolute right-3.5 top-3" />
+              )}
+            </div>
+
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {isPrefixLocked
+                ? "This prefix cannot be changed because products have already been assigned sequential SKUs with it."
+                : "Enter 2 to 5 uppercase letters. All products in this Level 2 category will automatically be assigned sequential SKUs (e.g. GAS-001, GAS-002)."}
+            </p>
+          </div>
+        ) : parentId ? (
+          <div className="p-3 rounded-xl bg-muted/30 border border-border text-xs text-muted-foreground flex items-center gap-2">
+            <FolderTree className="w-4 h-4 text-primary shrink-0" />
+            <span>This subcategory will inherit its SKU prefix and sequence from its parent Level 2 category.</span>
+          </div>
+        ) : (
+          <div className="p-3 rounded-xl bg-muted/20 border border-border text-xs text-muted-foreground flex items-center gap-2">
+            <FolderTree className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span>Root category: used to group product categories. Product SKUs are assigned at Level 2.</span>
+          </div>
+        )}
 
         {/* Description */}
         <div className="space-y-1.5">

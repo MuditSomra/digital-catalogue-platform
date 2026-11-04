@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { slugify } from "./slugify";
 import { AttributeType, Prisma } from "@prisma/client";
+import { generateNextCategorySku, resolveLevel2Category } from "./category-service";
 import type {
   ProductListItem,
   ProductAdminDetailView,
@@ -631,7 +632,10 @@ async function processDynamicSpecifications(
 /**
  * Creates a product and its dynamic attribute values in a single transaction.
  */
-export async function createProduct(input: CreateProductInput) {
+export async function createProduct(
+  input: CreateProductInput,
+  options?: { allowManualSku?: boolean }
+) {
   // 1. Verify Category exists
   const category = await prisma.category.findUnique({
     where: { id: input.categoryId },
@@ -664,35 +668,57 @@ export async function createProduct(input: CreateProductInput) {
     throw new ProductServiceError("Selling price cannot be greater than MRP.");
   }
 
-  // 4. Validate SKU uniqueness
-  const existingSku = await prisma.product.findUnique({
-    where: { sku: input.sku.trim().toUpperCase() },
-    select: { id: true },
-  });
-
-  if (existingSku) {
-    throw new ProductServiceError(
-      `This SKU "${input.sku}" is already being used by another product. Please enter a unique SKU.`
-    );
-  }
-
-  // 5. Generate unique slug
+  // 4. Generate unique slug
   const slug = await generateUniqueProductSlug(input.name, input.modelNumber);
 
-  // 6. Validate & process dynamic specifications for this category
+  // 5. Validate & process dynamic specifications for this category
   const rawAttrs = input.attributeValues ?? input.attributes ?? [];
   const attributeRecords = await processDynamicSpecifications(
     input.categoryId,
     rawAttrs
   );
 
-  // 7. Atomic transaction creation
+  // 6. Atomic transaction creation (SKU generation + Product creation)
   const created = await prisma.$transaction(async (tx) => {
+    let finalSku: string;
+    const trimmedSku = input.sku?.trim().toUpperCase();
+
+    // Only allow manual SKU if explicitly permitted (e.g. internal migrations/imports)
+    if (options?.allowManualSku && trimmedSku) {
+      finalSku = trimmedSku;
+      const existingSku = await tx.product.findUnique({
+        where: { sku: finalSku },
+        select: { id: true },
+      });
+      if (existingSku) {
+        throw new ProductServiceError(
+          `This SKU "${finalSku}" is already being used by another product. Please enter a unique SKU.`
+        );
+      }
+      // If manual SKU matches the category's prefix (e.g. GAS-030), keep the sequence synchronized
+      const level2 = await resolveLevel2Category(input.categoryId, tx as any);
+      if (level2?.skuPrefix) {
+        const match = finalSku.match(new RegExp(`^${level2.skuPrefix}-(\\d+)$`));
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > (level2.skuLastNumber ?? 0)) {
+            await tx.category.update({
+              where: { id: level2.id },
+              data: { skuLastNumber: num },
+            });
+          }
+        }
+      }
+    } else {
+      // Normal catalogue creation ALWAYS generates SKUs server-side
+      finalSku = await generateNextCategorySku(input.categoryId, tx);
+    }
+
     const product = await tx.product.create({
       data: {
         name: input.name.trim(),
         slug,
-        sku: input.sku.trim().toUpperCase(),
+        sku: finalSku,
         modelNumber: input.modelNumber?.trim() || null,
         description: input.description?.trim() || null,
         brandId: input.brandId,
@@ -795,20 +821,7 @@ export async function updateProduct(id: string, input: UpdateProductInput) {
     }
   }
 
-  // 4. Validate SKU uniqueness if changed
-  if (input.sku && input.sku.trim().toUpperCase() !== existing.sku) {
-    const skuDuplicate = await prisma.product.findUnique({
-      where: { sku: input.sku.trim().toUpperCase() },
-      select: { id: true },
-    });
-    if (skuDuplicate && skuDuplicate.id !== id) {
-      throw new ProductServiceError(
-        `This SKU "${input.sku}" is already being used by another product. Please enter a unique SKU.`
-      );
-    }
-  }
-
-  // 5. Validate Price constraints
+  // 4. Validate Price constraints
   const mrpNum = input.mrp !== undefined ? Number(input.mrp) : Number(existing.mrp);
   const sellingPriceNum =
     input.sellingPrice !== undefined
@@ -827,7 +840,7 @@ export async function updateProduct(id: string, input: UpdateProductInput) {
     throw new ProductServiceError("Selling price cannot be greater than MRP.");
   }
 
-  // 6. Handle slug update if name changes or slug provided
+  // 5. Handle slug update if name changes or slug provided
   let slug = existing.slug;
   if (input.slug) {
     slug = await generateUniqueProductSlug(input.slug, input.modelNumber, id);
@@ -835,7 +848,7 @@ export async function updateProduct(id: string, input: UpdateProductInput) {
     slug = await generateUniqueProductSlug(input.name, input.modelNumber, id);
   }
 
-  // 7. Validate & process specifications
+  // 6. Validate & process specifications
   let attributeRecords: AttributeCreateRecord[] | null = null;
   const rawAttrs = input.attributeValues !== undefined ? input.attributeValues : input.attributes;
   if (rawAttrs !== undefined || isCategoryChanging) {
@@ -845,14 +858,13 @@ export async function updateProduct(id: string, input: UpdateProductInput) {
     );
   }
 
-  // 8. Execute update in transaction
+  // 7. Execute update in transaction (SKU is never modified on existing products)
   await prisma.$transaction(async (tx) => {
     await tx.product.update({
       where: { id },
       data: {
         ...(input.name !== undefined && { name: input.name.trim() }),
         ...(slug !== existing.slug && { slug }),
-        ...(input.sku !== undefined && { sku: input.sku.trim().toUpperCase() }),
         ...(input.modelNumber !== undefined && {
           modelNumber: input.modelNumber?.trim() || null,
         }),
